@@ -38,7 +38,7 @@ function EventDetails() {
             try {
 
                 const response = await axios.get(
-                    `http://localhost:5000/api/events/${id}`
+                    `https://eventora-backend-cpdf.onrender.com/api/events/${id}`
                 );
 
                 setEvent(response.data);

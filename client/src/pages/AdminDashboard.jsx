@@ -74,7 +74,7 @@ function AdminDashboard() {
             setEventsLoading(true);
 
             const response = await axios.get(
-                "http://localhost:5000/api/events"
+                "https://eventora-backend-cpdf.onrender.com"
             );
 
             setEvents(
@@ -134,7 +134,7 @@ function AdminDashboard() {
 
             const response = await axios.post(
 
-                "http://localhost:5000/api/events",
+                "https://eventora-backend-cpdf.onrender.com",
 
                 {
 
@@ -237,7 +237,7 @@ function AdminDashboard() {
 
             await axios.delete(
 
-                `http://localhost:5000/api/events/${eventId}`,
+                `https://eventora-backend-cpdf.onrender.com/api/events/${eventId}`,
 
                 {
 
@@ -345,7 +345,7 @@ function AdminDashboard() {
 
             const response = await axios.put(
 
-                `http://localhost:5000/api/events/${editingEvent._id}`,
+                `https://eventora-backend-cpdf.onrender.com/api/events/${editingEvent._id}`,
 
                 {
 

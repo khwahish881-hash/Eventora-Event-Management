@@ -30,7 +30,7 @@ function EventDetails() {
             setLoading(true);
 
             const response = await axios.get(
-                `http://localhost:5000/api/events/${id}`
+                `https://eventora-backend-cpdf.onrender.com/api/events/${id}`
             );
 
             setEvent(response.data);
@@ -74,7 +74,7 @@ function EventDetails() {
         try {
 
             await axios.delete(
-                `http://localhost:5000/api/events/${id}`,
+                `https://eventora-backend-cpdf.onrender.com/api/events/${id}`,
                 {
                     headers: {
                         Authorization:

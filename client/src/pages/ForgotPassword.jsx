@@ -55,7 +55,7 @@ function ForgotPassword() {
 
             const response =
                 await axios.post(
-                    "http://localhost:5000/api/auth/forgot-password",
+                    "https://eventora-backend-cpdf.onrender.com/api/auth/forgot-password",
                     {
                         email
                     }
@@ -123,7 +123,7 @@ function ForgotPassword() {
 
             const response =
                 await axios.post(
-                    "http://localhost:5000/api/auth/reset-password",
+                    "https://eventora-backend-cpdf.onrender.com/api/auth/reset-password",
                     {
                         email,
                         otp,

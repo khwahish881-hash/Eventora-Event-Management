@@ -78,7 +78,7 @@ function CreateEvent() {
 
                 const response =
                     await axios.get(
-                        `http://localhost:5000/api/events/${id}`
+                        `https://eventora-backend-cpdf.onrender.com/api/events/${id}`
                     );
 
                 const event =
@@ -232,7 +232,7 @@ function CreateEvent() {
             if (isEditMode) {
 
                 await axios.put(
-                    `http://localhost:5000/api/events/${id}`,
+                    `https://eventora-backend-cpdf.onrender.com/api/events/${id}`,
                     data,
                     {
                         headers: {
@@ -249,7 +249,7 @@ function CreateEvent() {
             } else {
 
                 await axios.post(
-                    "http://localhost:5000/api/events",
+                    "https://eventora-backend-cpdf.onrender.com/api/events",
                     data,
                     {
                         headers: {

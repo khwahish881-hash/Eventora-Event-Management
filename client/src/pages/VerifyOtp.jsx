@@ -48,7 +48,7 @@ function VerifyOtp() {
 
             const response =
                 await axios.post(
-                    "http://localhost:5000/api/auth/verify-otp",
+                    "https://eventora-backend-cpdf.onrender.com/api/auth/verify-otp",
                     {
                         email,
                         otp

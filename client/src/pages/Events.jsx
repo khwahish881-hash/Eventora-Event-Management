@@ -17,7 +17,7 @@ function Events() {
             setError("");
 
             const response = await axios.get(
-                "http://localhost:5000/api/events"
+                "https://eventora-backend-cpdf.onrender.com/api/events"
             );
 
             setEvents(

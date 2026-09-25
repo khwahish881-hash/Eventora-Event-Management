@@ -56,7 +56,7 @@ function BookingDetails() {
 
                 const response =
                     await axios.get(
-                        `http://localhost:5000/api/events/${id}`
+                        `https://eventora-backend-cpdf.onrender.com/api/events/${id}`
                     );
 
                 setEvent(
@@ -92,7 +92,7 @@ function BookingDetails() {
 
             const response =
                 await axios.post(
-                    "http://localhost:5000/api/bookings/send-otp",
+                    "https://eventora-backend-cpdf.onrender.com/api/bookings/send-otp",
                     {},
                     {
                         headers: {
@@ -145,7 +145,7 @@ function BookingDetails() {
 
             const response =
                 await axios.post(
-                    "http://localhost:5000/api/bookings/book",
+                    "https://eventora-backend-cpdf.onrender.com/api/bookings/book",
                     {
                         eventId: id,
                         otp
@@ -165,7 +165,7 @@ function BookingDetails() {
 
             const confirmResponse =
                 await axios.put(
-                    `http://localhost:5000/api/bookings/confirm/${bookingId}`,
+                    `https://eventora-backend-cpdf.onrender.com/api/bookings/confirm/${bookingId}`,
                     {
                         paymentStatus
                     },

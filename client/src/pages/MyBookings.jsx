@@ -38,7 +38,7 @@ function MyBookings() {
 
             const response =
                 await axios.get(
-                    "http://localhost:5000/api/bookings/my",
+                    "https://eventora-backend-cpdf.onrender.com/api/bookings/my",
                     {
                         headers: {
                             Authorization:
