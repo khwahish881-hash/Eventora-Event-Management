@@ -1,21 +1,15 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
 
-function AdminDashboard() {
+const API_URL = "https://eventora-backend-cpdf.onrender.com/api/events";
 
-    const navigate = useNavigate();
+const AdminDashboard = () => {
+    const [events, setEvents] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [message, setMessage] = useState("");
+    const [error, setError] = useState("");
 
-    const user = JSON.parse(
-        localStorage.getItem("user") || "null"
-    );
-
-    const token = localStorage.getItem("token");
-
-
-    // =====================================================
-    // CREATE EVENT FORM
-    // =====================================================
+    const [editingEvent, setEditingEvent] = useState(null);
 
     const [formData, setFormData] = useState({
         title: "",
@@ -26,416 +20,238 @@ function AdminDashboard() {
         totalSeats: "",
         availableSeats: "",
         ticketPrice: "",
-        imageUrl: ""
+        image: "",
     });
 
+    const token = localStorage.getItem("token");
 
-    // =====================================================
-    // EVENTS
-    // =====================================================
+    // =========================
+    // GET ALL EVENTS
+    // =========================
+    const fetchEvents = async () => {
+        try {
+            setLoading(true);
+            setError("");
 
-    const [events, setEvents] = useState([]);
+            const response = await axios.get(API_URL);
 
-    const [loading, setLoading] = useState(false);
+            console.log("Events API response:", response.data);
 
-    const [eventsLoading, setEventsLoading] = useState(true);
+            if (Array.isArray(response.data)) {
+                setEvents(response.data);
+            } else if (Array.isArray(response.data.events)) {
+                setEvents(response.data.events);
+            } else {
+                setEvents([]);
+            }
+        } catch (err) {
+            console.error("Fetch events error:", err);
 
-    const [message, setMessage] = useState("");
-
-    const [error, setError] = useState("");
-
-
-    // =====================================================
-    // EDIT MODE
-    // =====================================================
-
-    const [editingEvent, setEditingEvent] = useState(null);
-
-
-    // =====================================================
-    // FETCH EVENTS
-    // =====================================================
-
-    useEffect(() => {
-
-        if (!token || !user || user.role !== "admin") {
-            return;
+            setError(
+                err.response?.data?.message ||
+                "Unable to load events. Please try again."
+            );
+        } finally {
+            setLoading(false);
         }
+    };
 
+    // =========================
+    // LOAD EVENTS
+    // =========================
+    useEffect(() => {
         fetchEvents();
-
     }, []);
 
-
-    const fetchEvents = async () => {
-
-        try {
-
-            setEventsLoading(true);
-
-            const response = await axios.get(
-                "https://eventora-backend-cpdf.onrender.com"
-            );
-
-            setEvents(
-                response.data.events
-            );
-
-        } catch (error) {
-
-            console.error(error);
-
-            setError(
-                "Unable to load events."
-            );
-
-        } finally {
-
-            setEventsLoading(false);
-
-        }
-
-    };
-
-
-    // =====================================================
-    // FORM CHANGE
-    // =====================================================
-
+    // =========================
+    // INPUT CHANGE
+    // =========================
     const handleChange = (e) => {
+        const { name, value } = e.target;
 
-        setFormData({
-
-            ...formData,
-
-            [e.target.name]: e.target.value
-
-        });
-
+        setFormData((prev) => ({
+            ...prev,
+            [name]: value,
+        }));
     };
 
-
-    // =====================================================
+    // =========================
     // CREATE EVENT
-    // =====================================================
-
-    const handleSubmit = async (e) => {
-
+    // =========================
+    const handleCreateEvent = async (e) => {
         e.preventDefault();
 
-        setLoading(true);
-
-        setMessage("");
-
-        setError("");
-
-
         try {
+            setMessage("");
+            setError("");
 
-            const response = await axios.post(
+            if (!token) {
+                setError("Please login again. Authentication token not found.");
+                return;
+            }
 
-                "https://eventora-backend-cpdf.onrender.com",
+            const eventData = {
+                title: formData.title,
+                description: formData.description,
+                date: formData.date,
+                location: formData.location,
+                category: formData.category,
+                totalSeats: Number(formData.totalSeats),
+                availableSeats: Number(
+                    formData.availableSeats || formData.totalSeats
+                ),
+                ticketPrice: Number(formData.ticketPrice),
+                image: formData.image,
+            };
 
-                {
+            console.log("Creating event:", eventData);
 
-                    ...formData,
-
-                    totalSeats:
-                        Number(formData.totalSeats),
-
-                    availableSeats:
-                        Number(formData.availableSeats),
-
-                    ticketPrice:
-                        Number(formData.ticketPrice)
-
+            await axios.post(API_URL, eventData, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
                 },
-
-                {
-
-                    headers: {
-
-                        Authorization:
-                            `Bearer ${token}`
-
-                    }
-
-                }
-
-            );
-
-
-            console.log(response.data);
-
-
-            setMessage(
-                "Event created successfully!"
-            );
-
-
-            setFormData({
-
-                title: "",
-                description: "",
-                date: "",
-                location: "",
-                category: "",
-                totalSeats: "",
-                availableSeats: "",
-                ticketPrice: "",
-                imageUrl: ""
-
             });
 
+            setMessage("Event created successfully!");
+
+            resetForm();
 
             fetchEvents();
-
-
-        } catch (error) {
-
-            console.error(error);
+        } catch (err) {
+            console.error("Create event error:", err);
 
             setError(
-
-                error.response?.data?.error ||
-
-                "Unable to create event."
-
+                err.response?.data?.message ||
+                "Failed to create event. Please try again."
             );
-
-        } finally {
-
-            setLoading(false);
-
         }
-
     };
 
-
-    // =====================================================
+    // =========================
     // DELETE EVENT
-    // =====================================================
-
+    // =========================
     const handleDelete = async (eventId) => {
-
         const confirmDelete = window.confirm(
             "Are you sure you want to delete this event?"
         );
 
-
-        if (!confirmDelete) {
-            return;
-        }
-
+        if (!confirmDelete) return;
 
         try {
-
+            setMessage("");
             setError("");
 
-            setMessage("");
+            if (!token) {
+                setError("Please login again.");
+                return;
+            }
 
+            await axios.delete(`${API_URL}/${eventId}`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
 
-            await axios.delete(
-
-                `https://eventora-backend-cpdf.onrender.com/api/events/${eventId}`,
-
-                {
-
-                    headers: {
-
-                        Authorization:
-                            `Bearer ${token}`
-
-                    }
-
-                }
-
-            );
-
-
-            setMessage(
-                "Event deleted successfully!"
-            );
-
+            setMessage("Event deleted successfully!");
 
             fetchEvents();
-
-
-        } catch (error) {
-
-            console.error(error);
+        } catch (err) {
+            console.error("Delete event error:", err);
 
             setError(
-
-                error.response?.data?.error ||
-
-                "Unable to delete event."
-
+                err.response?.data?.message ||
+                "Failed to delete event."
             );
-
         }
-
     };
 
-
-    // =====================================================
-    // START EDIT
-    // =====================================================
-
+    // =========================
+    // EDIT EVENT
+    // =========================
     const handleEdit = (event) => {
-
         setEditingEvent(event);
 
-
         setFormData({
-
-            title: event.title,
-
-            description: event.description,
-
+            title: event.title || "",
+            description: event.description || "",
             date: event.date
-                ? new Date(event.date)
-                    .toISOString()
-                    .slice(0, 16)
+                ? new Date(event.date).toISOString().slice(0, 16)
                 : "",
-
-            location: event.location,
-
-            category: event.category,
-
-            totalSeats:
-                event.totalSeats,
-
-            availableSeats:
-                event.availableSeats,
-
-            ticketPrice:
-                event.ticketPrice,
-
-            imageUrl:
-                event.imageUrl
-
+            location: event.location || "",
+            category: event.category || "",
+            totalSeats: event.totalSeats || "",
+            availableSeats: event.availableSeats || "",
+            ticketPrice: event.ticketPrice || "",
+            image: event.image || "",
         });
-
 
         window.scrollTo({
             top: 0,
-            behavior: "smooth"
+            behavior: "smooth",
         });
-
     };
 
-
-    // =====================================================
+    // =========================
     // UPDATE EVENT
-    // =====================================================
-
-    const handleUpdate = async (e) => {
-
+    // =========================
+    const handleUpdateEvent = async (e) => {
         e.preventDefault();
 
-        setLoading(true);
-
-        setMessage("");
-
-        setError("");
-
-
         try {
+            setMessage("");
+            setError("");
 
-            const response = await axios.put(
+            if (!token) {
+                setError("Please login again.");
+                return;
+            }
 
-                `https://eventora-backend-cpdf.onrender.com/api/events/${editingEvent._id}`,
+            const updatedData = {
+                title: formData.title,
+                description: formData.description,
+                date: formData.date,
+                location: formData.location,
+                category: formData.category,
+                totalSeats: Number(formData.totalSeats),
+                availableSeats: Number(formData.availableSeats),
+                ticketPrice: Number(formData.ticketPrice),
+                image: formData.image,
+            };
 
+            console.log("Updating event:", updatedData);
+
+            await axios.put(
+                `${API_URL}/${editingEvent._id}`,
+                updatedData,
                 {
-
-                    ...formData,
-
-                    totalSeats:
-                        Number(formData.totalSeats),
-
-                    availableSeats:
-                        Number(formData.availableSeats),
-
-                    ticketPrice:
-                        Number(formData.ticketPrice)
-
-                },
-
-                {
-
                     headers: {
-
-                        Authorization:
-                            `Bearer ${token}`
-
-                    }
-
+                        Authorization: `Bearer ${token}`,
+                    },
                 }
-
             );
 
-
-            console.log(response.data);
-
-
-            setMessage(
-                "Event updated successfully!"
-            );
-
+            setMessage("Event updated successfully!");
 
             setEditingEvent(null);
 
-
-            setFormData({
-
-                title: "",
-                description: "",
-                date: "",
-                location: "",
-                category: "",
-                totalSeats: "",
-                availableSeats: "",
-                ticketPrice: "",
-                imageUrl: ""
-
-            });
-
+            resetForm();
 
             fetchEvents();
-
-
-        } catch (error) {
-
-            console.error(error);
+        } catch (err) {
+            console.error("Update event error:", err);
 
             setError(
-
-                error.response?.data?.error ||
-
-                "Unable to update event."
-
+                err.response?.data?.message ||
+                "Failed to update event."
             );
-
-        } finally {
-
-            setLoading(false);
-
         }
-
     };
 
-
-    // =====================================================
-    // CANCEL EDIT
-    // =====================================================
-
-    const cancelEdit = () => {
-
-        setEditingEvent(null);
-
+    // =========================
+    // RESET FORM
+    // =========================
+    const resetForm = () => {
         setFormData({
-
             title: "",
             description: "",
             date: "",
@@ -444,297 +260,148 @@ function AdminDashboard() {
             totalSeats: "",
             availableSeats: "",
             ticketPrice: "",
-            imageUrl: ""
-
+            image: "",
         });
 
-        setMessage("");
-
-        setError("");
-
+        setEditingEvent(null);
     };
 
-
-    // =====================================================
+    // =========================
     // LOGOUT
-    // =====================================================
-
+    // =========================
     const handleLogout = () => {
-
         localStorage.removeItem("token");
-
         localStorage.removeItem("user");
 
-        navigate("/login");
-
+        window.location.href = "/login";
     };
 
-
-    // =====================================================
-    // ACCESS DENIED
-    // =====================================================
-
-    if (
-        !token ||
-        !user ||
-        user.role !== "admin"
-    ) {
-
-        return (
-
-            <div>
-
-                <nav className="navbar">
-
-                    <div className="navbar-container">
-
-                        <Link
-                            to="/"
-                            className="logo"
-                        >
-                            Eventora
-                        </Link>
-
-                        <div className="nav-links">
-
-                            <Link to="/">
-                                Home
-                            </Link>
-
-                            <Link to="/events">
-                                Events
-                            </Link>
-
-                            <Link to="/bookings">
-                                My Bookings
-                            </Link>
-
-                        </div>
-
-                    </div>
-
-                </nav>
-
-
-                <div className="events-message">
-
-                    <h2>
-                        Access Denied
-                    </h2>
-
-                    <p>
-                        Only administrators can access
-                        this page.
+    return (
+        <div
+            style={{
+                minHeight: "100vh",
+                backgroundColor: "#f5f7fb",
+                paddingBottom: "40px",
+            }}
+        >
+            {/* ================= HEADER ================= */}
+            <div
+                style={{
+                    backgroundColor: "#111827",
+                    color: "white",
+                    padding: "18px 30px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                }}
+            >
+                <div>
+                    <h2 style={{ margin: 0 }}>EVENTORA Admin Dashboard</h2>
+                    <p style={{ margin: "5px 0 0", opacity: 0.8 }}>
+                        Manage your events
                     </p>
-
-                    <br />
-
-                    <Link
-                        to="/"
-                        className="event-button"
-                    >
-                        Back to Home
-                    </Link>
-
                 </div>
 
+                <button
+                    onClick={handleLogout}
+                    style={{
+                        backgroundColor: "#ef4444",
+                        color: "white",
+                        border: "none",
+                        padding: "10px 18px",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                    }}
+                >
+                    Logout
+                </button>
             </div>
 
-        );
+            <div
+                style={{
+                    maxWidth: "1200px",
+                    margin: "30px auto",
+                    padding: "0 20px",
+                }}
+            >
+                {/* ================= MESSAGES ================= */}
 
-    }
-
-
-    // =====================================================
-    // MAIN ADMIN PAGE
-    // =====================================================
-
-    return (
-
-        <div>
-
-            {/* =========================
-                NAVBAR
-            ========================= */}
-
-            <nav className="navbar">
-
-                <div className="navbar-container">
-
-                    <Link
-                        to="/"
-                        className="logo"
+                {message && (
+                    <div
+                        style={{
+                            backgroundColor: "#dcfce7",
+                            color: "#166534",
+                            padding: "12px 15px",
+                            borderRadius: "6px",
+                            marginBottom: "20px",
+                        }}
                     >
-                        Eventora
-                    </Link>
-
-
-                    <div className="nav-links">
-
-                        <Link to="/">
-                            Home
-                        </Link>
-
-                        <Link to="/events">
-                            Events
-                        </Link>
-
-                        <Link to="/bookings">
-                            My Bookings
-                        </Link>
-
-                        <span className="admin-label">
-                            Admin
-                        </span>
-
-                        <button
-                            onClick={handleLogout}
-                            className="logout-button"
-                        >
-                            Logout
-                        </button>
-
+                        {message}
                     </div>
+                )}
 
-                </div>
-
-            </nav>
-
-
-            {/* =========================
-                ADMIN PAGE
-            ========================= */}
-
-            <section className="admin-page">
-
-                <div className="admin-container">
-
-
-                    {/* HEADER */}
-
-                    <div className="admin-header">
-
-                        <h1>
-                            Admin Dashboard
-                        </h1>
-
-                        <p>
-                            Create and manage Eventora events.
-                        </p>
-
+                {error && (
+                    <div
+                        style={{
+                            backgroundColor: "#fee2e2",
+                            color: "#991b1b",
+                            padding: "12px 15px",
+                            borderRadius: "6px",
+                            marginBottom: "20px",
+                        }}
+                    >
+                        {error}
                     </div>
+                )}
 
+                {/* ================= CREATE / EDIT FORM ================= */}
 
-                    {/* =========================
-                        CREATE / EDIT FORM
-                    ========================= */}
+                <div
+                    style={{
+                        backgroundColor: "white",
+                        padding: "25px",
+                        borderRadius: "10px",
+                        boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
+                        marginBottom: "30px",
+                    }}
+                >
+                    <h2 style={{ marginTop: 0 }}>
+                        {editingEvent ? "Edit Event" : "Create New Event"}
+                    </h2>
 
-                    <div className="admin-card">
-
-                        <h2>
-
-                            {editingEvent
-                                ? "Edit Event"
-                                : "Create New Event"}
-
-                        </h2>
-
-
-                        <p className="admin-card-description">
-
-                            {editingEvent
-
-                                ? "Update the event details below."
-
-                                : "Enter the details below to create a new event."
-
-                            }
-
-                        </p>
-
-
-                        {/* SUCCESS */}
-
-                        {message && (
-
-                            <div className="success-message">
-
-                                {message}
-
-                            </div>
-
-                        )}
-
-
-                        {/* ERROR */}
-
-                        {error && (
-
-                            <div className="error-message">
-
-                                {error}
-
-                            </div>
-
-                        )}
-
-
-                        <form
-                            onSubmit={
-                                editingEvent
-                                    ? handleUpdate
-                                    : handleSubmit
-                            }
+                    <form
+                        onSubmit={
+                            editingEvent
+                                ? handleUpdateEvent
+                                : handleCreateEvent
+                        }
+                    >
+                        <div
+                            style={{
+                                display: "grid",
+                                gridTemplateColumns:
+                                    "repeat(auto-fit, minmax(250px, 1fr))",
+                                gap: "15px",
+                            }}
                         >
-
-
                             {/* TITLE */}
-
-                            <div className="form-group">
-
-                                <label>
-                                    Event Title
-                                </label>
+                            <div>
+                                <label>Event Title</label>
 
                                 <input
                                     type="text"
                                     name="title"
-                                    placeholder="Enter event title"
                                     value={formData.title}
                                     onChange={handleChange}
+                                    placeholder="Enter event title"
                                     required
+                                    style={inputStyle}
                                 />
-
                             </div>
-
-
-                            {/* DESCRIPTION */}
-
-                            <div className="form-group">
-
-                                <label>
-                                    Description
-                                </label>
-
-                                <textarea
-                                    name="description"
-                                    placeholder="Enter event description"
-                                    value={formData.description}
-                                    onChange={handleChange}
-                                    rows="5"
-                                    required
-                                />
-
-                            </div>
-
 
                             {/* DATE */}
-
-                            <div className="form-group">
-
-                                <label>
-                                    Event Date
-                                </label>
+                            <div>
+                                <label>Date & Time</label>
 
                                 <input
                                     type="datetime-local"
@@ -742,436 +409,341 @@ function AdminDashboard() {
                                     value={formData.date}
                                     onChange={handleChange}
                                     required
+                                    style={inputStyle}
                                 />
-
                             </div>
 
-
                             {/* LOCATION */}
-
-                            <div className="form-group">
-
-                                <label>
-                                    Location
-                                </label>
+                            <div>
+                                <label>Location</label>
 
                                 <input
                                     type="text"
                                     name="location"
-                                    placeholder="Enter event location"
                                     value={formData.location}
                                     onChange={handleChange}
+                                    placeholder="Enter location"
                                     required
+                                    style={inputStyle}
                                 />
-
                             </div>
 
-
                             {/* CATEGORY */}
+                            <div>
+                                <label>Category</label>
 
-                            <div className="form-group">
-
-                                <label>
-                                    Category
-                                </label>
-
-                                <select
+                                <input
+                                    type="text"
                                     name="category"
                                     value={formData.category}
                                     onChange={handleChange}
+                                    placeholder="Technology, Music, Sports..."
                                     required
-                                >
-
-                                    <option value="">
-                                        Select Category
-                                    </option>
-
-                                    <option value="Technology">
-                                        Technology
-                                    </option>
-
-                                    <option value="Music">
-                                        Music
-                                    </option>
-
-                                    <option value="Art">
-                                        Art
-                                    </option>
-
-                                    <option value="Workshop">
-                                        Workshop
-                                    </option>
-
-                                    <option value="Sports">
-                                        Sports
-                                    </option>
-
-                                    <option value="Business">
-                                        Business
-                                    </option>
-
-                                    <option value="Other">
-                                        Other
-                                    </option>
-
-                                </select>
-
+                                    style={inputStyle}
+                                />
                             </div>
 
+                            {/* TOTAL SEATS */}
+                            <div>
+                                <label>Total Seats</label>
 
-                            {/* SEATS */}
-
-                            <div className="admin-form-row">
-
-                                <div className="form-group">
-
-                                    <label>
-                                        Total Seats
-                                    </label>
-
-                                    <input
-                                        type="number"
-                                        name="totalSeats"
-                                        placeholder="100"
-                                        min="1"
-                                        value={formData.totalSeats}
-                                        onChange={handleChange}
-                                        required
-                                    />
-
-                                </div>
-
-
-                                <div className="form-group">
-
-                                    <label>
-                                        Available Seats
-                                    </label>
-
-                                    <input
-                                        type="number"
-                                        name="availableSeats"
-                                        placeholder="100"
-                                        min="0"
-                                        value={formData.availableSeats}
-                                        onChange={handleChange}
-                                        required
-                                    />
-
-                                </div>
-
+                                <input
+                                    type="number"
+                                    name="totalSeats"
+                                    value={formData.totalSeats}
+                                    onChange={handleChange}
+                                    placeholder="100"
+                                    min="1"
+                                    required
+                                    style={inputStyle}
+                                />
                             </div>
 
+                            {/* AVAILABLE SEATS */}
+                            <div>
+                                <label>Available Seats</label>
 
-                            {/* PRICE */}
+                                <input
+                                    type="number"
+                                    name="availableSeats"
+                                    value={formData.availableSeats}
+                                    onChange={handleChange}
+                                    placeholder="100"
+                                    min="0"
+                                    required
+                                    style={inputStyle}
+                                />
+                            </div>
 
-                            <div className="form-group">
-
-                                <label>
-                                    Ticket Price
-                                </label>
+                            {/* TICKET PRICE */}
+                            <div>
+                                <label>Ticket Price</label>
 
                                 <input
                                     type="number"
                                     name="ticketPrice"
-                                    placeholder="500"
-                                    min="0"
                                     value={formData.ticketPrice}
                                     onChange={handleChange}
+                                    placeholder="500"
+                                    min="0"
                                     required
+                                    style={inputStyle}
                                 />
-
                             </div>
-
 
                             {/* IMAGE */}
-
-                            <div className="form-group">
-
-                                <label>
-                                    Event Image URL
-                                </label>
+                            <div>
+                                <label>Image URL</label>
 
                                 <input
-                                    type="url"
-                                    name="imageUrl"
-                                    placeholder="https://example.com/event-image.jpg"
-                                    value={formData.imageUrl}
+                                    type="text"
+                                    name="image"
+                                    value={formData.image}
                                     onChange={handleChange}
-                                    required
+                                    placeholder="https://example.com/image.jpg"
+                                    style={inputStyle}
                                 />
-
                             </div>
-
-
-                            {/* BUTTONS */}
-
-                            <button
-                                type="submit"
-                                className="auth-button admin-submit-button"
-                                disabled={loading}
-                            >
-
-                                {loading
-
-                                    ? editingEvent
-                                        ? "Updating Event..."
-                                        : "Creating Event..."
-
-                                    : editingEvent
-                                        ? "Update Event"
-                                        : "Create Event"
-
-                                }
-
-                            </button>
-
-
-                            {/* CANCEL EDIT */}
-
-                            {editingEvent && (
-
-                                <button
-                                    type="button"
-                                    className="admin-cancel-button"
-                                    onClick={cancelEdit}
-                                >
-                                    Cancel Edit
-                                </button>
-
-                            )}
-
-                        </form>
-
-                    </div>
-
-
-                    {/* =========================
-                        EVENT MANAGEMENT
-                    ========================= */}
-
-                    <div className="admin-events-section">
-
-                        <div className="admin-events-header">
-
-                            <div>
-
-                                <h2>
-                                    Manage Events
-                                </h2>
-
-                                <p>
-                                    View, edit or delete your events.
-                                </p>
-
-                            </div>
-
-                            <span className="event-count">
-
-                                {events.length}{" "}
-                                {events.length === 1
-                                    ? "Event"
-                                    : "Events"}
-
-                            </span>
-
                         </div>
 
+                        {/* DESCRIPTION */}
 
-                        {/* LOADING */}
+                        <div style={{ marginTop: "15px" }}>
+                            <label>Description</label>
 
-                        {eventsLoading && (
+                            <textarea
+                                name="description"
+                                value={formData.description}
+                                onChange={handleChange}
+                                placeholder="Enter event description"
+                                required
+                                rows="4"
+                                style={{
+                                    ...inputStyle,
+                                    resize: "vertical",
+                                }}
+                            />
+                        </div>
 
-                            <div className="admin-events-message">
+                        {/* BUTTONS */}
 
-                                <h3>
-                                    Loading events...
-                                </h3>
+                        <div
+                            style={{
+                                marginTop: "20px",
+                                display: "flex",
+                                gap: "10px",
+                            }}
+                        >
+                            <button
+                                type="submit"
+                                style={{
+                                    backgroundColor: "#2563eb",
+                                    color: "white",
+                                    border: "none",
+                                    padding: "12px 22px",
+                                    borderRadius: "6px",
+                                    cursor: "pointer",
+                                    fontSize: "15px",
+                                }}
+                            >
+                                {editingEvent
+                                    ? "Update Event"
+                                    : "Create Event"}
+                            </button>
 
-                            </div>
-
-                        )}
-
-
-                        {/* NO EVENTS */}
-
-                        {!eventsLoading &&
-                            events.length === 0 && (
-
-                                <div className="admin-events-message">
-
-                                    <h3>
-                                        No events found
-                                    </h3>
-
-                                    <p>
-                                        Create your first event
-                                        using the form above.
-                                    </p>
-
-                                </div>
-
+                            {editingEvent && (
+                                <button
+                                    type="button"
+                                    onClick={resetForm}
+                                    style={{
+                                        backgroundColor: "#6b7280",
+                                        color: "white",
+                                        border: "none",
+                                        padding: "12px 22px",
+                                        borderRadius: "6px",
+                                        cursor: "pointer",
+                                        fontSize: "15px",
+                                    }}
+                                >
+                                    Cancel
+                                </button>
                             )}
-
-
-                        {/* EVENT LIST */}
-
-                        {!eventsLoading &&
-                            events.length > 0 && (
-
-                                <div className="admin-events-grid">
-
-                                    {events.map((event) => (
-
-                                        <div
-                                            className="admin-event-card"
-                                            key={event._id}
-                                        >
-
-                                            {/* IMAGE */}
-
-                                            <img
-                                                src={event.imageUrl}
-                                                alt={event.title}
-                                                className="admin-event-image"
-                                            />
-
-
-                                            {/* CONTENT */}
-
-                                            <div className="admin-event-content">
-
-                                                <span className="event-category">
-
-                                                    {event.category}
-
-                                                </span>
-
-
-                                                <h3>
-                                                    {event.title}
-                                                </h3>
-
-
-                                                <p className="admin-event-description">
-
-                                                    {event.description}
-
-                                                </p>
-
-
-                                                <div className="admin-event-info">
-
-                                                    <p>
-                                                        📅{" "}
-                                                        {new Date(
-                                                            event.date
-                                                        ).toLocaleDateString(
-                                                            "en-IN",
-                                                            {
-                                                                day: "numeric",
-                                                                month: "long",
-                                                                year: "numeric"
-                                                            }
-                                                        )}
-                                                    </p>
-
-                                                    <p>
-                                                        📍{" "}
-                                                        {event.location}
-                                                    </p>
-
-                                                    <p>
-                                                        💺{" "}
-                                                        {event.availableSeats}
-                                                        {" / "}
-                                                        {event.totalSeats}
-                                                        {" "}seats available
-                                                    </p>
-
-                                                    <p>
-                                                        🎟️ ₹
-                                                        {event.ticketPrice}
-                                                    </p>
-
-                                                </div>
-
-
-                                                {/* ACTIONS */}
-
-                                                <div className="admin-event-actions">
-
-                                                    <Link
-                                                        to={`/events/${event._id}`}
-                                                        className="admin-view-button"
-                                                    >
-                                                        View
-                                                    </Link>
-
-
-                                                    <button
-                                                        type="button"
-                                                        className="admin-edit-button"
-                                                        onClick={() =>
-                                                            handleEdit(event)
-                                                        }
-                                                    >
-                                                        Edit
-                                                    </button>
-
-
-                                                    <button
-                                                        type="button"
-                                                        className="admin-delete-button"
-                                                        onClick={() =>
-                                                            handleDelete(
-                                                                event._id
-                                                            )
-                                                        }
-                                                    >
-                                                        Delete
-                                                    </button>
-
-                                                </div>
-
-                                            </div>
-
-                                        </div>
-
-                                    ))}
-
-                                </div>
-
-                            )}
-
-                    </div>
-
+                        </div>
+                    </form>
                 </div>
 
-            </section>
+                {/* ================= EVENTS ================= */}
 
+                <div
+                    style={{
+                        backgroundColor: "white",
+                        padding: "25px",
+                        borderRadius: "10px",
+                        boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
+                    }}
+                >
+                    <div
+                        style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            marginBottom: "20px",
+                        }}
+                    >
+                        <h2 style={{ margin: 0 }}>Manage Events</h2>
 
-            {/* FOOTER */}
+                        <button
+                            onClick={fetchEvents}
+                            style={{
+                                backgroundColor: "#111827",
+                                color: "white",
+                                border: "none",
+                                padding: "9px 15px",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Refresh
+                        </button>
+                    </div>
 
-            <footer className="footer">
+                    {loading ? (
+                        <p>Loading events...</p>
+                    ) : events.length === 0 ? (
+                        <p>No events available.</p>
+                    ) : (
+                        <div
+                            style={{
+                                display: "grid",
+                                gridTemplateColumns:
+                                    "repeat(auto-fit, minmax(280px, 1fr))",
+                                gap: "20px",
+                            }}
+                        >
+                            {events.map((event) => (
+                                <div
+                                    key={event._id}
+                                    style={{
+                                        border: "1px solid #e5e7eb",
+                                        borderRadius: "10px",
+                                        overflow: "hidden",
+                                        backgroundColor: "#fff",
+                                    }}
+                                >
+                                    {event.image && (
+                                        <img
+                                            src={event.image}
+                                            alt={event.title}
+                                            style={{
+                                                width: "100%",
+                                                height: "180px",
+                                                objectFit: "cover",
+                                            }}
+                                            onError={(e) => {
+                                                e.target.style.display = "none";
+                                            }}
+                                        />
+                                    )}
 
-                <h3>
-                    Eventora
-                </h3>
+                                    <div style={{ padding: "18px" }}>
+                                        <h3 style={{ marginTop: 0 }}>
+                                            {event.title}
+                                        </h3>
 
-                <p>
-                    Your gateway to amazing events.
-                </p>
+                                        <p>
+                                            <strong>Category:</strong>{" "}
+                                            {event.category || "N/A"}
+                                        </p>
 
-                <p>
-                    © 2026 Eventora. All rights reserved.
-                </p>
+                                        <p>
+                                            <strong>Location:</strong>{" "}
+                                            {event.location || "N/A"}
+                                        </p>
 
-            </footer>
+                                        <p>
+                                            <strong>Date:</strong>{" "}
+                                            {event.date
+                                                ? new Date(
+                                                    event.date
+                                                ).toLocaleString()
+                                                : "N/A"}
+                                        </p>
 
+                                        <p>
+                                            <strong>Total Seats:</strong>{" "}
+                                            {event.totalSeats ?? "N/A"}
+                                        </p>
+
+                                        <p>
+                                            <strong>Available Seats:</strong>{" "}
+                                            {event.availableSeats ?? "N/A"}
+                                        </p>
+
+                                        <p>
+                                            <strong>Ticket Price:</strong> ₹
+                                            {event.ticketPrice ?? 0}
+                                        </p>
+
+                                        <p>
+                                            {event.description || "No description"}
+                                        </p>
+
+                                        <div
+                                            style={{
+                                                display: "flex",
+                                                gap: "10px",
+                                                marginTop: "15px",
+                                            }}
+                                        >
+                                            <button
+                                                onClick={() => handleEdit(event)}
+                                                style={{
+                                                    backgroundColor: "#f59e0b",
+                                                    color: "white",
+                                                    border: "none",
+                                                    padding: "9px 15px",
+                                                    borderRadius: "5px",
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                Edit
+                                            </button>
+
+                                            <button
+                                                onClick={() =>
+                                                    handleDelete(event._id)
+                                                }
+                                                style={{
+                                                    backgroundColor: "#dc2626",
+                                                    color: "white",
+                                                    border: "none",
+                                                    padding: "9px 15px",
+                                                    borderRadius: "5px",
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     );
-}
+};
 
+const inputStyle = {
+    width: "100%",
+    padding: "10px",
+    marginTop: "6px",
+    border: "1px solid #d1d5db",
+    borderRadius: "6px",
+    boxSizing: "border-box",
+    fontSize: "14px",
+};
 
 export default AdminDashboard;

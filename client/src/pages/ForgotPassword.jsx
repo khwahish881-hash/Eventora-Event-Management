@@ -1,158 +1,123 @@
 import React, { useState } from "react";
 import axios from "axios";
-import {
-    Link,
-    useNavigate
-} from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 function ForgotPassword() {
-
     const navigate = useNavigate();
 
-    const [email, setEmail] =
-        useState("");
+    const [email, setEmail] = useState("");
+    const [otp, setOtp] = useState("");
+    const [password, setPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
 
-    const [otp, setOtp] =
-        useState("");
+    const [otpSent, setOtpSent] = useState(false);
+    const [loading, setLoading] = useState(false);
 
-    const [newPassword, setNewPassword] =
-        useState("");
-
-    const [confirmPassword, setConfirmPassword] =
-        useState("");
-
-    const [otpSent, setOtpSent] =
-        useState(false);
-
-    const [loading, setLoading] =
-        useState(false);
-
-    const [error, setError] =
-        useState("");
-
-    const [success, setSuccess] =
-        useState("");
-
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
 
     const sendOtp = async () => {
-
         setError("");
         setSuccess("");
 
         if (!email) {
-
-            setError(
-                "Please enter your email."
-            );
-
+            setError("Please enter your email.");
             return;
         }
 
-
         try {
-
             setLoading(true);
 
-            const response =
-                await axios.post(
-                    "https://eventora-backend-cpdf.onrender.com/api/auth/forgot-password",
-                    {
-                        email
-                    }
-                );
+            const response = await axios.post(
+                "http://localhost:5000/api/auth/forgot-password",
+                {
+                    email: email
+                }
+            );
 
             setOtpSent(true);
 
             setSuccess(
-                response.data.message
+                response.data.message ||
+                "OTP sent to your email."
             );
 
         } catch (error) {
+            console.error("Send OTP Error:", error);
 
             setError(
+                error.response?.data?.message ||
                 error.response?.data?.error ||
                 "Unable to send OTP."
             );
-
         } finally {
-
             setLoading(false);
-
         }
     };
 
-
     const resetPassword = async (e) => {
-
         e.preventDefault();
 
         setError("");
         setSuccess("");
 
-
         if (
             !email ||
             !otp ||
-            !newPassword ||
+            !password ||
             !confirmPassword
         ) {
-
-            setError(
-                "Please fill all fields."
-            );
-
+            setError("Please fill all fields.");
             return;
         }
 
-
-        if (
-            newPassword !== confirmPassword
-        ) {
-
-            setError(
-                "Passwords do not match."
-            );
-
+        if (password !== confirmPassword) {
+            setError("Passwords do not match.");
             return;
         }
 
+        if (password.length < 6) {
+            setError(
+                "Password must be at least 6 characters."
+            );
+            return;
+        }
 
         try {
-
             setLoading(true);
 
-            const response =
-                await axios.post(
-                    "https://eventora-backend-cpdf.onrender.com/api/auth/reset-password",
-                    {
-                        email,
-                        otp,
-                        newPassword,
-                        confirmPassword
-                    }
-                );
-
+            const response = await axios.post(
+                "http://localhost:5000/api/auth/reset-password",
+                {
+                    email: email,
+                    otp: otp,
+                    password: password,
+                    confirmPassword: confirmPassword
+                }
+            );
 
             alert(
-                response.data.message
+                response.data.message ||
+                "Password reset successfully."
             );
 
             navigate("/login");
 
         } catch (error) {
+            console.error(
+                "Reset Password Error:",
+                error
+            );
 
             setError(
+                error.response?.data?.message ||
                 error.response?.data?.error ||
                 "Unable to reset password."
             );
-
         } finally {
-
             setLoading(false);
-
         }
     };
-
 
     return (
         <div className="auth-page">
@@ -176,20 +141,17 @@ function ForgotPassword() {
 
                 </div>
 
-
                 {error && (
                     <div className="error-box">
                         {error}
                     </div>
                 )}
 
-
                 {success && (
                     <div className="success-box">
                         {success}
                     </div>
                 )}
-
 
                 <form
                     onSubmit={resetPassword}
@@ -205,18 +167,14 @@ function ForgotPassword() {
                         placeholder="Enter your email"
                         value={email}
                         onChange={(e) =>
-                            setEmail(
-                                e.target.value
-                            )
+                            setEmail(e.target.value)
                         }
                     />
 
-
                     {!otpSent && (
-
                         <button
                             type="button"
-                            className="secondary-btn full-btn"
+                            className="auth-submit"
                             onClick={sendOtp}
                             disabled={loading}
                         >
@@ -224,29 +182,23 @@ function ForgotPassword() {
                                 ? "Sending..."
                                 : "Send OTP"}
                         </button>
-
                     )}
-
 
                     {otpSent && (
                         <>
-
                             <label>
                                 OTP
                             </label>
 
                             <input
                                 type="text"
-                                maxLength="6"
-                                placeholder="Enter OTP"
+                                maxLength={6}
+                                placeholder="Enter 6 digit OTP"
                                 value={otp}
                                 onChange={(e) =>
-                                    setOtp(
-                                        e.target.value
-                                    )
+                                    setOtp(e.target.value)
                                 }
                             />
-
 
                             <label>
                                 New Password
@@ -254,15 +206,14 @@ function ForgotPassword() {
 
                             <input
                                 type="password"
-                                placeholder="New password"
-                                value={newPassword}
+                                placeholder="Enter new password"
+                                value={password}
                                 onChange={(e) =>
-                                    setNewPassword(
+                                    setPassword(
                                         e.target.value
                                     )
                                 }
                             />
-
 
                             <label>
                                 Confirm Password
@@ -270,7 +221,7 @@ function ForgotPassword() {
 
                             <input
                                 type="password"
-                                placeholder="Confirm password"
+                                placeholder="Confirm new password"
                                 value={confirmPassword}
                                 onChange={(e) =>
                                     setConfirmPassword(
@@ -278,7 +229,6 @@ function ForgotPassword() {
                                     )
                                 }
                             />
-
 
                             <button
                                 type="submit"
@@ -289,12 +239,10 @@ function ForgotPassword() {
                                     ? "Resetting..."
                                     : "Reset Password"}
                             </button>
-
                         </>
                     )}
 
                 </form>
-
 
                 <div className="auth-footer">
 

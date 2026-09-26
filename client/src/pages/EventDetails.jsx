@@ -11,7 +11,6 @@ function EventDetails() {
     const navigate = useNavigate();
 
     const [event, setEvent] = useState(null);
-
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
@@ -19,31 +18,83 @@ function EventDetails() {
         localStorage.getItem("user") || "null"
     );
 
-    const token =
-        localStorage.getItem("token");
+    const token = localStorage.getItem("token");
 
+    // =========================
+    // BACKEND API
+    // =========================
+
+    const API_URL =
+        "https://eventora-backend-cpdf.onrender.com/api/events";
+
+
+    // =========================
+    // FETCH SINGLE EVENT
+    // =========================
 
     const fetchEvent = async () => {
 
         try {
 
             setLoading(true);
+            setError("");
 
-            const response = await axios.get(
-                `https://eventora-backend-cpdf.onrender.com/api/events/${id}`
+            console.log(
+                "Fetching event:",
+                `${API_URL}/${id}`
             );
 
-            setEvent(response.data);
+            const response = await axios.get(
+                `${API_URL}/${id}`
+            );
 
-        } catch (error) {
+            console.log(
+                "Event details response:",
+                response.data
+            );
+
+            /*
+             * Backend can return either:
+             *
+             * { event: {...} }
+             *
+             * OR
+             *
+             * {...}
+             */
+
+            const eventData =
+                response.data?.event ||
+                response.data;
+
+            if (!eventData || !eventData._id) {
+
+                setError(
+                    "Event data was not found."
+                );
+
+                setEvent(null);
+
+                return;
+            }
+
+            setEvent(eventData);
+
+        } catch (err) {
 
             console.error(
                 "Event details error:",
-                error
+                err
+            );
+
+            console.error(
+                "Response:",
+                err.response?.data
             );
 
             setError(
-                error.response?.data?.error ||
+                err.response?.data?.error ||
+                err.response?.data?.message ||
                 "Unable to load event."
             );
 
@@ -55,10 +106,22 @@ function EventDetails() {
     };
 
 
+    // =========================
+    // LOAD EVENT
+    // =========================
+
     useEffect(() => {
-        fetchEvent();
+
+        if (id) {
+            fetchEvent();
+        }
+
     }, [id]);
 
+
+    // =========================
+    // DELETE EVENT
+    // =========================
 
     const handleDelete = async () => {
 
@@ -73,8 +136,19 @@ function EventDetails() {
 
         try {
 
+            if (!token) {
+
+                alert(
+                    "Please login again."
+                );
+
+                navigate("/login");
+
+                return;
+            }
+
             await axios.delete(
-                `https://eventora-backend-cpdf.onrender.com/api/events/${id}`,
+                `${API_URL}/${id}`,
                 {
                     headers: {
                         Authorization:
@@ -84,21 +158,31 @@ function EventDetails() {
             );
 
             alert(
-                "Event deleted successfully"
+                "Event deleted successfully!"
             );
 
             navigate("/events");
 
-        } catch (error) {
+        } catch (err) {
+
+            console.error(
+                "Delete event error:",
+                err
+            );
 
             alert(
-                error.response?.data?.error ||
-                "Unable to delete event"
+                err.response?.data?.error ||
+                err.response?.data?.message ||
+                "Unable to delete event."
             );
 
         }
     };
 
+
+    // =========================
+    // LOADING
+    // =========================
 
     if (loading) {
 
@@ -106,17 +190,28 @@ function EventDetails() {
             <div className="page-container">
 
                 <div className="loading-box">
+
                     <div className="loader"></div>
 
                     <h2>
                         Loading Event...
                     </h2>
+
+                    <p>
+                        Please wait while event
+                        details are loading.
+                    </p>
+
                 </div>
 
             </div>
         );
     }
 
+
+    // =========================
+    // ERROR
+    // =========================
 
     if (error || !event) {
 
@@ -130,7 +225,7 @@ function EventDetails() {
                     </div>
 
                     <h2>
-                        Event Not Found
+                        Unable to Load Event
                     </h2>
 
                     <p>
@@ -144,7 +239,7 @@ function EventDetails() {
                             navigate("/events")
                         }
                     >
-                        Back to Events
+                        ← Back to Events
                     </button>
 
                 </div>
@@ -154,8 +249,41 @@ function EventDetails() {
     }
 
 
+    // =========================
+    // BOOK EVENT
+    // =========================
+
+    const handleBooking = () => {
+
+        if (!token) {
+
+            navigate(
+                "/login",
+                {
+                    state: {
+                        from:
+                            `/events/${event._id}`
+                    }
+                }
+            );
+
+            return;
+        }
+
+        navigate(
+            `/booking/${event._id}`
+        );
+    };
+
+
+    // =========================
+    // PAGE
+    // =========================
+
     return (
         <div className="page-container">
+
+            {/* BACK BUTTON */}
 
             <button
                 className="back-btn"
@@ -167,99 +295,188 @@ function EventDetails() {
             </button>
 
 
+            {/* EVENT CARD */}
+
             <div className="event-details-card">
+
+
+                {/* IMAGE */}
 
                 <div className="event-details-image">
 
                     <img
                         src={
+                            event.image ||
                             event.imageUrl ||
-                            "https://via.placeholder.com/800x500"
+                            "https://via.placeholder.com/800x500?text=EVENTORA"
                         }
-                        alt={event.title}
+                        alt={
+                            event.title ||
+                            "Event"
+                        }
+
+                        onError={(e) => {
+
+                            e.target.src =
+                                "https://via.placeholder.com/800x500?text=EVENTORA";
+
+                        }}
                     />
 
                 </div>
 
 
+                {/* CONTENT */}
+
                 <div className="event-details-content">
 
+
+                    {/* CATEGORY */}
+
                     <span className="category-badge">
-                        {event.category}
+
+                        {event.category ||
+                            "Event"}
+
                     </span>
+
+
+                    {/* TITLE */}
 
                     <h1>
                         {event.title}
                     </h1>
 
+
+                    {/* DESCRIPTION */}
+
                     <p className="event-details-description">
-                        {event.description}
+
+                        {event.description ||
+                            "No description available."}
+
                     </p>
 
 
+                    {/* DETAILS */}
+
                     <div className="details-list">
 
+
+                        {/* DATE */}
+
                         <div>
-                            <span>📅</span>
+
+                            <span>
+                                📅
+                            </span>
+
                             <div>
+
                                 <small>
                                     Date & Time
                                 </small>
 
                                 <strong>
-                                    {new Date(
-                                        event.date
-                                    ).toLocaleString()}
+
+                                    {event.date
+                                        ? new Date(
+                                            event.date
+                                        ).toLocaleString()
+                                        : "Not available"}
+
                                 </strong>
+
                             </div>
+
                         </div>
 
 
+                        {/* LOCATION */}
+
                         <div>
-                            <span>📍</span>
+
+                            <span>
+                                📍
+                            </span>
+
                             <div>
+
                                 <small>
                                     Location
                                 </small>
 
                                 <strong>
-                                    {event.location}
+
+                                    {event.location ||
+                                        "Not available"}
+
                                 </strong>
+
                             </div>
+
                         </div>
 
 
+                        {/* AVAILABLE SEATS */}
+
                         <div>
-                            <span>🎟️</span>
+
+                            <span>
+                                🎟️
+                            </span>
+
                             <div>
+
                                 <small>
                                     Available Seats
                                 </small>
 
                                 <strong>
-                                    {event.availableSeats}
+
+                                    {event.availableSeats ??
+                                        0}
+
                                 </strong>
+
                             </div>
+
                         </div>
 
 
+                        {/* TICKET PRICE */}
+
                         <div>
-                            <span>💰</span>
+
+                            <span>
+                                💰
+                            </span>
+
                             <div>
+
                                 <small>
                                     Ticket Price
                                 </small>
 
                                 <strong>
-                                    ₹{event.ticketPrice}
+
+                                    ₹
+                                    {event.ticketPrice ??
+                                        0}
+
                                 </strong>
+
                             </div>
+
                         </div>
+
 
                     </div>
 
 
-                    {/* ADMIN CONTROLS */}
+                    {/* =========================
+                        ADMIN CONTROLS
+                    ========================= */}
 
                     {user?.role === "admin" ? (
 
@@ -276,6 +493,7 @@ function EventDetails() {
                                 ✏️ Edit Event
                             </button>
 
+
                             <button
                                 className="delete-btn"
                                 onClick={handleDelete}
@@ -287,37 +505,32 @@ function EventDetails() {
 
                     ) : (
 
+                        /* =========================
+                           USER BOOKING
+                        ========================= */
+
                         <button
                             className="primary-btn book-main-btn"
+
                             disabled={
-                                event.availableSeats <= 0
+                                Number(
+                                    event.availableSeats
+                                ) <= 0
                             }
-                            onClick={() => {
 
-                                if (!token) {
-
-                                    navigate(
-                                        "/login",
-                                        {
-                                            state: {
-                                                from:
-                                                    `/events/${event._id}`
-                                            }
-                                        }
-                                    );
-
-                                    return;
-                                }
-
-                                navigate(
-                                    `/booking/${event._id}`
-                                );
-
-                            }}
+                            onClick={
+                                handleBooking
+                            }
                         >
-                            {event.availableSeats <= 0
+
+                            {Number(
+                                event.availableSeats
+                            ) <= 0
+
                                 ? "Sold Out"
+
                                 : "Book This Event →"}
+
                         </button>
 
                     )}

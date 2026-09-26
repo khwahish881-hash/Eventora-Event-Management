@@ -1,120 +1,83 @@
 import React, { useState } from "react";
 import axios from "axios";
-import {
-    Link,
-    useNavigate
-} from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 function VerifyOtp() {
-
     const navigate = useNavigate();
 
-    const [email, setEmail] =
-        useState(
-            localStorage.getItem(
-                "verificationEmail"
-            ) || ""
-        );
+    const [email, setEmail] = useState(
+        localStorage.getItem("verificationEmail") || ""
+    );
 
-    const [otp, setOtp] =
-        useState("");
-
-    const [error, setError] =
-        useState("");
-
-    const [loading, setLoading] =
-        useState(false);
-
+    const [otp, setOtp] = useState("");
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
 
     const handleVerify = async (e) => {
-
         e.preventDefault();
 
         setError("");
 
         if (!email || !otp) {
-
-            setError(
-                "Please enter email and OTP."
-            );
-
+            setError("Please enter email and OTP.");
             return;
         }
 
-
         try {
-
             setLoading(true);
 
-            const response =
-                await axios.post(
-                    "https://eventora-backend-cpdf.onrender.com/api/auth/verify-otp",
-                    {
-                        email,
-                        otp
-                    }
-                );
-
+            const response = await axios.post(
+                "http://localhost:5000/api/auth/verify-otp",
+                {
+                    email,
+                    otp
+                }
+            );
 
             localStorage.setItem(
                 "token",
                 response.data.token
             );
 
-
             localStorage.setItem(
                 "user",
                 JSON.stringify({
-                    _id:
-                        response.data._id,
-
-                    name:
-                        response.data.name,
-
-                    email:
-                        response.data.email,
-
-                    role:
-                        response.data.role
+                    _id: response.data.user.id,
+                    name: response.data.user.name,
+                    email: response.data.user.email,
+                    role: response.data.user.role
                 })
             );
-
 
             localStorage.removeItem(
                 "verificationEmail"
             );
 
-
             window.dispatchEvent(
-                new Event(
-                    "eventora-auth-change"
-                )
+                new Event("eventora-auth-change")
             );
 
-
-            alert(
-                "Account verified successfully!"
-            );
-
+            alert("Account verified successfully!");
 
             navigate("/events", {
                 replace: true
             });
 
         } catch (error) {
+            console.error(
+                "OTP Verification Error:",
+                error
+            );
 
             setError(
+                error.response?.data?.message ||
                 error.response?.data?.error ||
                 "Invalid or expired OTP."
             );
-
         } finally {
-
             setLoading(false);
-
         }
     };
-
 
     return (
         <div className="auth-page">
@@ -132,19 +95,16 @@ function VerifyOtp() {
                     </h1>
 
                     <p>
-                        Enter the OTP sent to your
-                        email.
+                        Enter the OTP sent to your email.
                     </p>
 
                 </div>
-
 
                 {error && (
                     <div className="error-box">
                         {error}
                     </div>
                 )}
-
 
                 <form
                     onSubmit={handleVerify}
@@ -159,12 +119,10 @@ function VerifyOtp() {
                         type="email"
                         value={email}
                         onChange={(e) =>
-                            setEmail(
-                                e.target.value
-                            )
+                            setEmail(e.target.value)
                         }
+                        placeholder="Enter your email"
                     />
-
 
                     <label>
                         OTP
@@ -172,16 +130,13 @@ function VerifyOtp() {
 
                     <input
                         type="text"
-                        maxLength="6"
+                        maxLength={6}
                         placeholder="Enter 6 digit OTP"
                         value={otp}
                         onChange={(e) =>
-                            setOtp(
-                                e.target.value
-                            )
+                            setOtp(e.target.value)
                         }
                     />
-
 
                     <button
                         type="submit"
@@ -194,7 +149,6 @@ function VerifyOtp() {
                     </button>
 
                 </form>
-
 
                 <div className="auth-footer">
 

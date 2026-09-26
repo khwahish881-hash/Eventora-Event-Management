@@ -8,65 +8,75 @@ import {
 function BookingDetails() {
 
     const { id } = useParams();
-
     const navigate = useNavigate();
 
-    const token =
-        localStorage.getItem("token");
+    const token = localStorage.getItem("token");
 
+    // Render backend URL
+    const API_URL = "https://eventora-backend-cpdf.onrender.com";
 
-    const [event, setEvent] =
-        useState(null);
+    const [event, setEvent] = useState(null);
 
-    const [otp, setOtp] =
-        useState("");
+    const [otp, setOtp] = useState("");
 
-    const [loading, setLoading] =
-        useState(true);
-
-    const [sendingOtp, setSendingOtp] =
-        useState(false);
-
-    const [confirming, setConfirming] =
-        useState(false);
+    const [loading, setLoading] = useState(true);
+    const [sendingOtp, setSendingOtp] = useState(false);
+    const [confirming, setConfirming] = useState(false);
 
     const [paymentStatus, setPaymentStatus] =
         useState("non_paid");
 
-    const [error, setError] =
-        useState("");
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
 
-    const [success, setSuccess] =
-        useState("");
 
+    // ==============================
+    // FETCH EVENT DETAILS
+    // ==============================
 
     useEffect(() => {
 
         if (!token) {
-
             navigate("/login");
-
             return;
         }
-
 
         const fetchEvent = async () => {
 
             try {
 
-                const response =
-                    await axios.get(
-                        `https://eventora-backend-cpdf.onrender.com/api/events/${id}`
-                    );
+                console.log("Fetching event:", id);
 
-                setEvent(
+                const response = await axios.get(
+                    `${API_URL}/api/events/${id}`
+                );
+
+                console.log(
+                    "Event response:",
                     response.data
                 );
 
+                // Supports both:
+                // { event: {...} }
+                // OR
+                // {...}
+
+                const eventData =
+                    response.data?.event ||
+                    response.data;
+
+                setEvent(eventData);
+
             } catch (error) {
+
+                console.error(
+                    "Fetch Event Error:",
+                    error
+                );
 
                 setError(
                     error.response?.data?.error ||
+                    error.response?.data?.message ||
                     "Unable to load event."
                 );
 
@@ -79,8 +89,12 @@ function BookingDetails() {
 
         fetchEvent();
 
-    }, [id]);
+    }, [id, token, navigate]);
 
+
+    // ==============================
+    // SEND BOOKING OTP
+    // ==============================
 
     const sendOtp = async () => {
 
@@ -90,17 +104,15 @@ function BookingDetails() {
             setError("");
             setSuccess("");
 
-            const response =
-                await axios.post(
-                    "https://eventora-backend-cpdf.onrender.com/api/bookings/send-otp",
-                    {},
-                    {
-                        headers: {
-                            Authorization:
-                                `Bearer ${token}`
-                        }
+            const response = await axios.post(
+                `${API_URL}/api/bookings/send-otp`,
+                {},
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`
                     }
-                );
+                }
+            );
 
             setSuccess(
                 response.data.message ||
@@ -109,8 +121,14 @@ function BookingDetails() {
 
         } catch (error) {
 
+            console.error(
+                "Send OTP Error:",
+                error
+            );
+
             setError(
                 error.response?.data?.error ||
+                error.response?.data?.message ||
                 "Unable to send OTP."
             );
 
@@ -121,6 +139,10 @@ function BookingDetails() {
         }
     };
 
+
+    // ==============================
+    // CONFIRM BOOKING
+    // ==============================
 
     const confirmBooking = async (e) => {
 
@@ -138,45 +160,60 @@ function BookingDetails() {
             return;
         }
 
+        if (otp.length !== 6) {
+
+            setError(
+                "Please enter a valid 6 digit OTP."
+            );
+
+            return;
+        }
 
         try {
 
             setConfirming(true);
 
-            const response =
-                await axios.post(
-                    "https://eventora-backend-cpdf.onrender.com/api/bookings/book",
-                    {
-                        eventId: id,
-                        otp
-                    },
-                    {
-                        headers: {
-                            Authorization:
-                                `Bearer ${token}`
-                        }
-                    }
-                );
+            // ==============================
+            // STEP 1: CREATE BOOKING
+            // ==============================
 
+            const response = await axios.post(
+                `${API_URL}/api/bookings/book`,
+                {
+                    eventId: id,
+                    otp: otp
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            );
+
+            console.log(
+                "Booking response:",
+                response.data
+            );
 
             const bookingId =
                 response.data.bookingId;
 
+            // ==============================
+            // STEP 2: CONFIRM BOOKING
+            // ==============================
 
             const confirmResponse =
                 await axios.put(
-                    `https://eventora-backend-cpdf.onrender.com/api/bookings/confirm/${bookingId}`,
+                    `${API_URL}/api/bookings/confirm/${bookingId}`,
                     {
-                        paymentStatus
+                        paymentStatus: paymentStatus
                     },
                     {
                         headers: {
-                            Authorization:
-                                `Bearer ${token}`
+                            Authorization: `Bearer ${token}`
                         }
                     }
                 );
-
 
             alert(
                 confirmResponse.data.message ||
@@ -187,8 +224,14 @@ function BookingDetails() {
 
         } catch (error) {
 
+            console.error(
+                "Confirm Booking Error:",
+                error
+            );
+
             setError(
                 error.response?.data?.error ||
+                error.response?.data?.message ||
                 "Unable to confirm booking."
             );
 
@@ -199,6 +242,10 @@ function BookingDetails() {
         }
     };
 
+
+    // ==============================
+    // LOADING SCREEN
+    // ==============================
 
     if (loading) {
 
@@ -220,19 +267,29 @@ function BookingDetails() {
     }
 
 
+    // ==============================
+    // PAGE
+    // ==============================
+
     return (
         <div className="page-container">
 
             <div className="booking-page-card">
 
+                {/* EVENT PREVIEW */}
+
                 <div className="booking-event-preview">
 
                     <img
                         src={
+                            event?.image ||
                             event?.imageUrl ||
                             "https://via.placeholder.com/500x300"
                         }
-                        alt={event?.title}
+                        alt={
+                            event?.title ||
+                            "Event"
+                        }
                     />
 
                     <h1>
@@ -244,11 +301,13 @@ function BookingDetails() {
                     </p>
 
                     <p>
-                        💰 ₹{event?.ticketPrice}
+                        💰 ₹{event?.ticketPrice || 0}
                     </p>
 
                 </div>
 
+
+                {/* BOOKING FORM */}
 
                 <div className="booking-form-section">
 
@@ -266,12 +325,16 @@ function BookingDetails() {
                     </p>
 
 
+                    {/* ERROR */}
+
                     {error && (
                         <div className="error-box">
                             {error}
                         </div>
                     )}
 
+
+                    {/* SUCCESS */}
 
                     {success && (
                         <div className="success-box">
@@ -280,20 +343,29 @@ function BookingDetails() {
                     )}
 
 
+                    {/* SEND OTP BUTTON */}
+
                     <button
+                        type="button"
                         className="secondary-btn full-btn"
                         onClick={sendOtp}
                         disabled={sendingOtp}
                     >
+
                         {sendingOtp
                             ? "Sending OTP..."
                             : "Send OTP"}
+
                     </button>
 
+
+                    {/* BOOKING FORM */}
 
                     <form
                         onSubmit={confirmBooking}
                     >
+
+                        {/* OTP */}
 
                         <label>
                             Enter OTP
@@ -301,16 +373,21 @@ function BookingDetails() {
 
                         <input
                             type="text"
-                            maxLength="6"
+                            maxLength={6}
                             placeholder="6 digit OTP"
                             value={otp}
                             onChange={(e) =>
                                 setOtp(
-                                    e.target.value
+                                    e.target.value.replace(
+                                        /\D/g,
+                                        ""
+                                    )
                                 )
                             }
                         />
 
+
+                        {/* PAYMENT STATUS */}
 
                         <label>
                             Payment Status
@@ -336,14 +413,18 @@ function BookingDetails() {
                         </select>
 
 
+                        {/* CONFIRM */}
+
                         <button
                             type="submit"
                             className="primary-btn full-btn"
                             disabled={confirming}
                         >
+
                             {confirming
                                 ? "Confirming..."
                                 : "Confirm Booking"}
+
                         </button>
 
                     </form>

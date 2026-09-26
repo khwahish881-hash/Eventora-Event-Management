@@ -21,17 +21,17 @@ import MyBookings from "./pages/MyBookings";
 
 import "./App.css";
 
-// =====================================================
-// NAVBAR
-// =====================================================
 
 function Navbar({ user, onLogout }) {
+
   const navigate = useNavigate();
   const location = useLocation();
 
-  const isLoggedIn = !!localStorage.getItem("token");
+  const isLoggedIn =
+    !!localStorage.getItem("token");
 
   const handleLogout = () => {
+
     localStorage.removeItem("token");
     localStorage.removeItem("user");
 
@@ -45,12 +45,14 @@ function Navbar({ user, onLogout }) {
 
       <div className="navbar-container">
 
-        {/* LOGO */}
-        <Link to="/" className="logo">
+        <Link
+          to="/"
+          className="logo"
+        >
           EVENTORA
         </Link>
 
-        {/* NAVIGATION */}
+
         <div className="nav-links">
 
           <Link
@@ -64,6 +66,7 @@ function Navbar({ user, onLogout }) {
             Home
           </Link>
 
+
           <Link
             to="/events"
             className={
@@ -74,6 +77,7 @@ function Navbar({ user, onLogout }) {
           >
             Explore Events
           </Link>
+
 
           {isLoggedIn && (
             <Link
@@ -88,7 +92,7 @@ function Navbar({ user, onLogout }) {
             </Link>
           )}
 
-          {/* ADMIN ONLY */}
+
           {user?.role === "admin" && (
             <Link
               to="/create-event"
@@ -100,7 +104,7 @@ function Navbar({ user, onLogout }) {
 
         </div>
 
-        {/* RIGHT SIDE */}
+
         <div className="nav-right">
 
           {!isLoggedIn ? (
@@ -143,17 +147,13 @@ function Navbar({ user, onLogout }) {
 }
 
 
-// =====================================================
-// HOME PAGE
-// =====================================================
-
 function Home({ user }) {
+
   const navigate = useNavigate();
 
   return (
     <div className="home-page">
 
-      {/* HERO */}
       <section className="hero-section">
 
         <div className="hero-content">
@@ -165,7 +165,9 @@ function Home({ user }) {
           <h1>
             Create Memories.
             <br />
-            <span>Attend Amazing Events.</span>
+            <span>
+              Attend Amazing Events.
+            </span>
           </h1>
 
           <p>
@@ -178,7 +180,9 @@ function Home({ user }) {
 
             <button
               className="primary-btn"
-              onClick={() => navigate("/events")}
+              onClick={() =>
+                navigate("/events")
+              }
             >
               Explore Events →
             </button>
@@ -186,7 +190,9 @@ function Home({ user }) {
             {!user && (
               <button
                 className="secondary-btn"
-                onClick={() => navigate("/register")}
+                onClick={() =>
+                  navigate("/register")
+                }
               >
                 Create Account
               </button>
@@ -196,30 +202,57 @@ function Home({ user }) {
 
         </div>
 
+
         <div className="hero-visual">
 
           <div className="event-card card-one">
+
             <span>🎵</span>
+
             <div>
-              <h4>Music Festival</h4>
-              <p>Live • Music • Fun</p>
+              <h4>
+                Music Festival
+              </h4>
+
+              <p>
+                Live • Music • Fun
+              </p>
             </div>
+
           </div>
+
 
           <div className="event-card card-two">
+
             <span>💻</span>
+
             <div>
-              <h4>Tech Conference</h4>
-              <p>Learn • Build • Connect</p>
+              <h4>
+                Tech Conference
+              </h4>
+
+              <p>
+                Learn • Build • Connect
+              </p>
             </div>
+
           </div>
 
+
           <div className="event-card card-three">
+
             <span>🎨</span>
+
             <div>
-              <h4>Art Exhibition</h4>
-              <p>Creative • Artistic</p>
+              <h4>
+                Art Exhibition
+              </h4>
+
+              <p>
+                Creative • Artistic
+              </p>
             </div>
+
           </div>
 
         </div>
@@ -227,53 +260,74 @@ function Home({ user }) {
       </section>
 
 
-      {/* FEATURES */}
       <section className="features-section">
 
         <div className="section-heading">
-          <p>WHY EVENTORA?</p>
-          <h2>Everything You Need For Events</h2>
+
+          <p>
+            WHY EVENTORA?
+          </p>
+
+          <h2>
+            Everything You Need For Events
+          </h2>
+
         </div>
+
 
         <div className="feature-grid">
 
           <div className="feature-card">
+
             <div className="feature-icon">
               🔎
             </div>
 
-            <h3>Discover Events</h3>
+            <h3>
+              Discover Events
+            </h3>
 
             <p>
               Find interesting events happening
               around you in one simple place.
             </p>
+
           </div>
 
+
           <div className="feature-card">
+
             <div className="feature-icon">
               🎟️
             </div>
 
-            <h3>Easy Booking</h3>
+            <h3>
+              Easy Booking
+            </h3>
 
             <p>
               Book your event seat quickly and
               securely with OTP verification.
             </p>
+
           </div>
 
+
           <div className="feature-card">
+
             <div className="feature-icon">
               ✨
             </div>
 
-            <h3>Great Experiences</h3>
+            <h3>
+              Great Experiences
+            </h3>
 
             <p>
               Join events, meet people and create
               memorable experiences.
             </p>
+
           </div>
 
         </div>
@@ -281,7 +335,6 @@ function Home({ user }) {
       </section>
 
 
-      {/* CTA */}
       <section className="home-cta">
 
         <h2>
@@ -294,7 +347,9 @@ function Home({ user }) {
         </p>
 
         <button
-          onClick={() => navigate("/events")}
+          onClick={() =>
+            navigate("/events")
+          }
           className="primary-btn"
         >
           Explore Events →
@@ -307,15 +362,14 @@ function Home({ user }) {
 }
 
 
-// =====================================================
-// APP
-// =====================================================
-
 function App() {
 
   const getStoredUser = () => {
+
     try {
-      const savedUser = localStorage.getItem("user");
+
+      const savedUser =
+        localStorage.getItem("user");
 
       if (!savedUser) {
         return null;
@@ -324,6 +378,7 @@ function App() {
       return JSON.parse(savedUser);
 
     } catch (error) {
+
       console.error(
         "Error reading user:",
         error
@@ -333,40 +388,48 @@ function App() {
     }
   };
 
+
   const [user, setUser] = useState(
     getStoredUser()
   );
 
-  // =================================================
-  // LISTEN FOR LOGIN / LOGOUT
-  // =================================================
 
   useEffect(() => {
 
     const updateUser = () => {
-      const savedUser = localStorage.getItem("user");
+
+      const savedUser =
+        localStorage.getItem("user");
 
       if (savedUser) {
+
         try {
-          setUser(JSON.parse(savedUser));
+          setUser(
+            JSON.parse(savedUser)
+          );
         } catch {
           setUser(null);
         }
+
       } else {
         setUser(null);
       }
     };
+
 
     window.addEventListener(
       "eventora-auth-change",
       updateUser
     );
 
+
     return () => {
+
       window.removeEventListener(
         "eventora-auth-change",
         updateUser
       );
+
     };
 
   }, []);
@@ -377,8 +440,11 @@ function App() {
 
       <Navbar
         user={user}
-        onLogout={() => setUser(null)}
+        onLogout={() =>
+          setUser(null)
+        }
       />
+
 
       <main className="main-content">
 
@@ -446,19 +512,22 @@ function App() {
       </main>
 
 
-      {/* FOOTER */}
-
       <footer className="footer">
 
         <div className="footer-container">
 
           <div>
-            <h2>EVENTORA</h2>
+
+            <h2>
+              EVENTORA
+            </h2>
 
             <p>
               Discover. Book. Experience.
             </p>
+
           </div>
+
 
           <div className="footer-links">
 
@@ -479,6 +548,7 @@ function App() {
           </div>
 
         </div>
+
 
         <div className="footer-bottom">
           © 2026 Eventora. All rights reserved.
