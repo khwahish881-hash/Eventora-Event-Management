@@ -12,15 +12,24 @@ function Login() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
+    const API_URL =
+        "https://eventora-backend-cpdf.onrender.com";
+
+
+    // ==========================================
+    // HANDLE LOGIN
+    // ==========================================
+
     const handleLogin = async (e) => {
 
         e.preventDefault();
 
         setError("");
 
-        if (!email || !password) {
+        // Check empty fields
+        if (!email.trim() || !password) {
             setError(
-                "Please enter email and password"
+                "Please enter email and password."
             );
             return;
         }
@@ -29,13 +38,55 @@ function Login() {
 
             setLoading(true);
 
+            console.log("Attempting login...");
+            console.log("Email:", email);
+
+
+            // ==========================================
+            // LOGIN API
+            // ==========================================
+
             const response = await axios.post(
-                "https://eventora-backend-cpdf.onrender.com/api/auth/login",
+                `${API_URL}/api/auth/login`,
                 {
-                    email,
-                    password
+                    email: email.trim(),
+                    password: password
+                },
+                {
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    timeout: 30000
                 }
             );
+
+
+            console.log(
+                "Login response:",
+                response.data
+            );
+
+
+            // ==========================================
+            // GET TOKEN
+            // ==========================================
+
+            const token = response.data?.token;
+
+            if (!token) {
+
+                console.error(
+                    "Token missing from response:",
+                    response.data
+                );
+
+                setError(
+                    "Login successful, but authentication token was not received."
+                );
+
+                return;
+            }
+
 
             // ==========================================
             // SAVE TOKEN
@@ -43,52 +94,157 @@ function Login() {
 
             localStorage.setItem(
                 "token",
-                response.data.token
+                token
             );
 
+
             // ==========================================
-            // SAVE USER
+            // SAVE USER INFORMATION
             // ==========================================
 
             const userData = {
-                _id: response.data._id,
-                name: response.data.name,
-                email: response.data.email,
-                role: response.data.role
+                _id:
+                    response.data?._id ||
+                    response.data?.user?._id ||
+                    "",
+
+                name:
+                    response.data?.name ||
+                    response.data?.user?.name ||
+                    "",
+
+                email:
+                    response.data?.email ||
+                    response.data?.user?.email ||
+                    email.trim(),
+
+                role:
+                    response.data?.role ||
+                    response.data?.user?.role ||
+                    "user"
             };
+
 
             localStorage.setItem(
                 "user",
                 JSON.stringify(userData)
             );
 
+
             // ==========================================
-            // TELL APP THAT LOGIN HAPPENED
+            // AUTH CHANGE EVENT
             // ==========================================
 
             window.dispatchEvent(
                 new Event("eventora-auth-change")
             );
 
+
             // ==========================================
-            // GO TO EVENTS
+            // LOGIN SUCCESS
             // ==========================================
 
-            navigate("/events", {
-                replace: true
-            });
+            console.log(
+                "Login successful"
+            );
+
+            console.log(
+                "User:",
+                userData
+            );
+
+
+            // Go to events page
+            navigate(
+                "/events",
+                {
+                    replace: true
+                }
+            );
 
         } catch (error) {
 
+            // ==========================================
+            // LOGIN ERROR
+            // ==========================================
+
             console.error(
-                "Login error:",
+                "LOGIN ERROR:",
                 error
             );
 
-            setError(
-                error.response?.data?.error ||
-                "Login failed. Please try again."
+            console.error(
+                "STATUS:",
+                error.response?.status
             );
+
+            console.error(
+                "RESPONSE:",
+                error.response?.data
+            );
+
+
+            // Backend error message
+            if (error.response) {
+
+                const status =
+                    error.response.status;
+
+                const backendMessage =
+                    error.response.data?.error ||
+                    error.response.data?.message;
+
+
+                if (backendMessage) {
+
+                    setError(
+                        backendMessage
+                    );
+
+                } else if (status === 400) {
+
+                    setError(
+                        "Invalid login request. Please check your email and password."
+                    );
+
+                } else if (status === 401) {
+
+                    setError(
+                        "Invalid email or password."
+                    );
+
+                } else if (status === 404) {
+
+                    setError(
+                        "Login API not found. Please check the backend server."
+                    );
+
+                } else if (status === 500) {
+
+                    setError(
+                        "Server error. Please try again later."
+                    );
+
+                } else {
+
+                    setError(
+                        `Login failed. Server returned status ${status}.`
+                    );
+                }
+
+            } else if (error.request) {
+
+                setError(
+                    "Unable to connect to the server. Please check your internet connection or backend deployment."
+                );
+
+            } else {
+
+                setError(
+                    error.message ||
+                    "Login failed. Please try again."
+                );
+            }
 
         } finally {
 
@@ -98,10 +254,19 @@ function Login() {
     };
 
 
+    // ==========================================
+    // PAGE
+    // ==========================================
+
     return (
+
         <div className="auth-page">
 
             <div className="auth-card">
+
+                {/* ============================== */}
+                {/* HEADER */}
+                {/* ============================== */}
 
                 <div className="auth-header">
 
@@ -121,17 +286,29 @@ function Login() {
                 </div>
 
 
+                {/* ============================== */}
+                {/* ERROR MESSAGE */}
+                {/* ============================== */}
+
                 {error && (
+
                     <div className="error-box">
                         {error}
                     </div>
+
                 )}
 
+
+                {/* ============================== */}
+                {/* LOGIN FORM */}
+                {/* ============================== */}
 
                 <form
                     onSubmit={handleLogin}
                     className="auth-form"
                 >
+
+                    {/* EMAIL */}
 
                     <label>
                         Email
@@ -144,8 +321,12 @@ function Login() {
                         onChange={(e) =>
                             setEmail(e.target.value)
                         }
+                        disabled={loading}
+                        autoComplete="email"
                     />
 
+
+                    {/* PASSWORD */}
 
                     <label>
                         Password
@@ -158,8 +339,12 @@ function Login() {
                         onChange={(e) =>
                             setPassword(e.target.value)
                         }
+                        disabled={loading}
+                        autoComplete="current-password"
                     />
 
+
+                    {/* FORGOT PASSWORD */}
 
                     <div className="forgot-row">
 
@@ -170,18 +355,26 @@ function Login() {
                     </div>
 
 
+                    {/* LOGIN BUTTON */}
+
                     <button
                         type="submit"
                         className="auth-submit"
                         disabled={loading}
                     >
+
                         {loading
                             ? "Logging in..."
                             : "Login"}
+
                     </button>
 
                 </form>
 
+
+                {/* ============================== */}
+                {/* REGISTER */}
+                {/* ============================== */}
 
                 <div className="auth-footer">
 
