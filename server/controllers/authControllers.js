@@ -1,739 +1,459 @@
-const User = require("../models/User");
-const OTP = require("../models/OTP");
+const db = require("../config/db");
 const bcrypt = require("bcryptjs");
+
 const generateToken = require("../utils/generateToken");
-
-const {
-    sendOTPEmail
-} = require("../utils/email");
+const { sendOTPEmail } = require("../utils/email");
 
 
-// =====================================================
-// GENERATE 6 DIGIT OTP
-// =====================================================
+// ========================================
+// Generate 6 Digit OTP
+// ========================================
 
 const generateOTP = () => {
-    return Math.floor(
-        100000 + Math.random() * 900000
-    ).toString();
+    return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
 
-// =====================================================
+// ========================================
 // REGISTER USER
-// =====================================================
+// ========================================
 
-exports.RegisterUser = async (req, res) => {
-
+const RegisterUser = async (req, res) => {
     try {
 
-        const {
-            name,
-            email,
-            password
-        } = req.body;
+        const { name, email, password } = req.body;
 
-
-        // Check required fields
-
+        // Validation
         if (!name || !email || !password) {
-
             return res.status(400).json({
-                error:
-                    "Please provide name, email and password"
+                message: "Please provide name, email and password"
             });
-
         }
 
-
-        // Check if user already exists
-
-        const existingUser = await User.findOne({
-            email: email
-        });
-
-
-        if (existingUser) {
-
+        if (password.length < 6) {
             return res.status(400).json({
-                error:
-                    "User already exists with this email"
+                message: "Password must be at least 6 characters"
             });
-
         }
 
+        // Check existing user
+        const [existingUsers] = await db.query(
+            "SELECT * FROM users WHERE email = ?",
+            [email]
+        );
+
+        if (existingUsers.length > 0) {
+            return res.status(400).json({
+                message: "User already exists"
+            });
+        }
 
         // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-        const hashedPassword =
-            await bcrypt.hash(
-                password,
-                10
-            );
+        // Create user
+        const [result] = await db.query(
+            `INSERT INTO users 
+            (name, email, password, role, is_verified)
+            VALUES (?, ?, ?, 'user', FALSE)`,
+            [
+                name,
+                email,
+                hashedPassword
+            ]
+        );
 
-
-        // IMPORTANT:
-        // Every newly registered account is a USER.
-        // Admin should be assigned manually.
-
-        const user = await User.create({
-
-            name: name,
-
-            email: email,
-
-            password: hashedPassword,
-
-            role: "user",
-
-            isVerified: false
-
-        });
-
+        const userId = result.insertId;
 
         // Generate OTP
-
         const otp = generateOTP();
 
+        // Delete old OTP
+        await db.query(
+            `DELETE FROM otp
+             WHERE email = ?
+             AND action = 'account_verification'`,
+            [email]
+        );
 
-        // Remove old verification OTP
-
-        await OTP.findOneAndDelete({
-
-            email: email,
-
-            action: "account_verification"
-
-        });
-
-
-        // Save new OTP
-
-        await OTP.create({
-
-            email: email,
-
-            otp: otp,
-
-            action: "account_verification"
-
-        });
-
+        // Save OTP
+        await db.query(
+            `INSERT INTO otp
+            (email, otp, action)
+            VALUES (?, ?, 'account_verification')`,
+            [email, otp]
+        );
 
         // Send OTP
-
-        await sendOTPEmail(
-            email,
-            otp,
-            "account_verification"
-        );
-
-
-        // Response
+        await sendOTPEmail(email, otp);
 
         res.status(201).json({
-
-            message:
-                "Registration successful. OTP sent to your email.",
-
-            user: {
-
-                _id: user._id,
-
-                name: user.name,
-
-                email: user.email,
-
-                role: user.role,
-
-                isVerified: user.isVerified
-
-            }
-
+            message: "Registration successful. OTP sent to your email.",
+            userId: userId
         });
-
 
     } catch (error) {
 
-        console.error(
-            "Register Error:",
-            error
-        );
-
+        console.error("Register Error:", error);
 
         res.status(500).json({
-
+            message: "Server error",
             error: error.message
-
         });
-
     }
-
 };
 
 
-
-// =====================================================
+// ========================================
 // LOGIN USER
-// =====================================================
+// ========================================
 
-exports.LoginUser = async (req, res) => {
-
+const LoginUser = async (req, res) => {
     try {
 
-        const {
-            email,
-            password
-        } = req.body;
+        const { email, password } = req.body;
 
-
-        // Check required fields
-
+        // Validation
         if (!email || !password) {
-
             return res.status(400).json({
-
-                error:
-                    "Email and password are required"
-
+                message: "Please provide email and password"
             });
-
         }
-
 
         // Find user
+        const [users] = await db.query(
+            "SELECT * FROM users WHERE email = ?",
+            [email]
+        );
 
-        const user = await User.findOne({
-            email: email
-        });
-
-
-        if (!user) {
-
-            return res.status(400).json({
-
-                error:
-                    "Invalid email or password"
-
+        if (users.length === 0) {
+            return res.status(401).json({
+                message: "Invalid email or password"
             });
-
         }
 
+        const user = users[0];
 
         // Check verification
-
-        if (!user.isVerified) {
-
-            return res.status(400).json({
-
-                error:
-                    "Please verify your account first"
-
+        if (!user.is_verified) {
+            return res.status(401).json({
+                message: "Please verify your email first"
             });
-
         }
-
 
         // Compare password
+        const passwordMatch = await bcrypt.compare(
+            password,
+            user.password
+        );
 
-        const isPasswordCorrect =
-            await bcrypt.compare(
-                password,
-                user.password
-            );
-
-
-        if (!isPasswordCorrect) {
-
-            return res.status(400).json({
-
-                error:
-                    "Invalid email or password"
-
+        if (!passwordMatch) {
+            return res.status(401).json({
+                message: "Invalid email or password"
             });
-
         }
-
 
         // Generate JWT
-
         const token = generateToken(
-            user._id,
+            user.user_id,
             user.role
         );
 
+        res.status(200).json({
+            message: "Login successful",
 
-        // Send response
+            token: token,
 
-        res.json({
-
-            message:
-                "Login successful",
-
-            _id: user._id,
-
-            name: user.name,
-
-            email: user.email,
-
-            role: user.role,
-
-            token: token
-
+            user: {
+                id: user.user_id,
+                name: user.name,
+                email: user.email,
+                role: user.role
+            }
         });
-
 
     } catch (error) {
 
-        console.error(
-            "Login Error:",
-            error
-        );
-
+        console.error("Login Error:", error);
 
         res.status(500).json({
-
+            message: "Server error",
             error: error.message
-
         });
-
     }
-
 };
 
 
+// ========================================
+// VERIFY OTP
+// ========================================
 
-// =====================================================
-// VERIFY ACCOUNT OTP
-// =====================================================
-
-exports.verifyOtp = async (req, res) => {
-
+const verifyOtp = async (req, res) => {
     try {
 
-        const {
-            email,
-            otp
-        } = req.body;
-
-
-        // Check fields
+        const { email, otp } = req.body;
 
         if (!email || !otp) {
-
             return res.status(400).json({
-
-                error:
-                    "Email and OTP are required"
-
+                message: "Email and OTP are required"
             });
-
         }
-
 
         // Find OTP
+        const [otpRecords] = await db.query(
+            `SELECT * FROM otp
+             WHERE email = ?
+             AND otp = ?
+             AND action = 'account_verification'
+             ORDER BY created_at DESC
+             LIMIT 1`,
+            [email, otp]
+        );
 
-        const otpRecord = await OTP.findOne({
-
-            email: email,
-
-            otp: otp,
-
-            action: "account_verification"
-
-        });
-
-
-        if (!otpRecord) {
-
+        if (otpRecords.length === 0) {
             return res.status(400).json({
-
-                error:
-                    "Invalid or expired OTP"
-
+                message: "Invalid OTP"
             });
-
         }
-
 
         // Verify user
-
-        const user =
-            await User.findOneAndUpdate(
-
-                {
-                    email: email
-                },
-
-                {
-                    isVerified: true
-                },
-
-                {
-                    new: true
-                }
-
-            );
-
-
-        if (!user) {
-
-            return res.status(404).json({
-
-                error:
-                    "User not found"
-
-            });
-
-        }
-
+        await db.query(
+            `UPDATE users
+             SET is_verified = TRUE
+             WHERE email = ?`,
+            [email]
+        );
 
         // Delete OTP
+        await db.query(
+            `DELETE FROM otp
+             WHERE email = ?
+             AND action = 'account_verification'`,
+            [email]
+        );
 
-        await OTP.deleteMany({
+        // Get user
+        const [users] = await db.query(
+            "SELECT * FROM users WHERE email = ?",
+            [email]
+        );
 
-            email: email,
+        if (users.length === 0) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
 
-            action: "account_verification"
-
-        });
-
+        const user = users[0];
 
         // Generate token
-
         const token = generateToken(
-            user._id,
+            user.user_id,
             user.role
         );
 
+        res.status(200).json({
+            message: "Email verified successfully",
 
-        // Response
+            token: token,
 
-        res.json({
-
-            message:
-                "Account verified successfully. You can now log in.",
-
-            _id: user._id,
-
-            name: user.name,
-
-            email: user.email,
-
-            role: user.role,
-
-            token: token
-
+            user: {
+                id: user.user_id,
+                name: user.name,
+                email: user.email,
+                role: user.role
+            }
         });
-
 
     } catch (error) {
 
-        console.error(
-            "Verify OTP Error:",
-            error
-        );
-
+        console.error("Verify OTP Error:", error);
 
         res.status(500).json({
-
+            message: "Server error",
             error: error.message
-
         });
-
     }
-
 };
 
 
-
-// =====================================================
+// ========================================
 // FORGOT PASSWORD
-// SEND PASSWORD RESET OTP
-// =====================================================
+// ========================================
 
-exports.forgotPassword = async (req, res) => {
-
+const forgotPassword = async (req, res) => {
     try {
 
-        const {
-            email
-        } = req.body;
-
-
-        // Check email
+        const { email } = req.body;
 
         if (!email) {
-
             return res.status(400).json({
-
-                error:
-                    "Email is required"
-
+                message: "Email is required"
             });
-
         }
-
 
         // Find user
-
-        const user = await User.findOne({
-
-            email: email
-
-        });
-
-
-        if (!user) {
-
-            return res.status(404).json({
-
-                error:
-                    "No account found with this email"
-
-            });
-
-        }
-
-
-        // Generate OTP
-
-        const otp = generateOTP();
-
-
-        // Delete previous password reset OTP
-
-        await OTP.findOneAndDelete({
-
-            email: email,
-
-            action: "password_reset"
-
-        });
-
-
-        // Save new OTP
-
-        await OTP.create({
-
-            email: email,
-
-            otp: otp,
-
-            action: "password_reset"
-
-        });
-
-
-        // Send OTP email
-
-        await sendOTPEmail(
-
-            email,
-
-            otp,
-
-            "password_reset"
-
+        const [users] = await db.query(
+            "SELECT * FROM users WHERE email = ?",
+            [email]
         );
 
+        if (users.length === 0) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
 
-        // Response
+        // Generate OTP
+        const otp = generateOTP();
 
-        res.json({
+        // Delete old reset OTP
+        await db.query(
+            `DELETE FROM otp
+             WHERE email = ?
+             AND action = 'password_reset'`,
+            [email]
+        );
 
-            message:
-                "Password reset OTP sent to your email"
+        // Save reset OTP
+        await db.query(
+            `INSERT INTO otp
+            (email, otp, action)
+            VALUES (?, ?, 'password_reset')`,
+            [email, otp]
+        );
 
+        // Send OTP
+        await sendOTPEmail(email, otp);
+
+        res.status(200).json({
+            message: "Password reset OTP sent to your email"
         });
-
 
     } catch (error) {
 
-        console.error(
-            "Forgot Password Error:",
-            error
-        );
-
+        console.error("Forgot Password Error:", error);
 
         res.status(500).json({
-
+            message: "Server error",
             error: error.message
-
         });
-
     }
-
 };
 
 
-
-// =====================================================
+// ========================================
 // RESET PASSWORD
-// =====================================================
+// ========================================
 
-exports.resetPassword = async (req, res) => {
-
+const resetPassword = async (req, res) => {
     try {
 
         const {
             email,
             otp,
-            newPassword,
+            password,
             confirmPassword
         } = req.body;
 
-
-        // Check fields
-
+        // Validation
         if (
             !email ||
             !otp ||
-            !newPassword ||
+            !password ||
             !confirmPassword
         ) {
-
             return res.status(400).json({
-
-                error:
-                    "Email, OTP and passwords are required"
-
+                message: "All fields are required"
             });
-
         }
 
-
-        // Check passwords match
-
-        if (
-            newPassword !== confirmPassword
-        ) {
-
+        if (password !== confirmPassword) {
             return res.status(400).json({
-
-                error:
-                    "Passwords do not match"
-
+                message: "Passwords do not match"
             });
-
         }
 
-
-        // Check password length
-
-        if (newPassword.length < 6) {
-
+        if (password.length < 6) {
             return res.status(400).json({
-
-                error:
-                    "Password must be at least 6 characters long"
-
+                message: "Password must be at least 6 characters"
             });
-
         }
 
+        // Check OTP
+        const [otpRecords] = await db.query(
+            `SELECT * FROM otp
+             WHERE email = ?
+             AND otp = ?
+             AND action = 'password_reset'
+             ORDER BY created_at DESC
+             LIMIT 1`,
+            [email, otp]
+        );
 
-        // Find password reset OTP
-
-        const otpRecord =
-            await OTP.findOne({
-
-                email: email,
-
-                otp: otp,
-
-                action: "password_reset"
-
-            });
-
-
-        if (!otpRecord) {
-
+        if (otpRecords.length === 0) {
             return res.status(400).json({
-
-                error:
-                    "Invalid or expired OTP"
-
+                message: "Invalid OTP"
             });
-
         }
-
 
         // Find user
+        const [users] = await db.query(
+            "SELECT * FROM users WHERE email = ?",
+            [email]
+        );
 
-        const user =
-            await User.findOne({
-
-                email: email
-
-            });
-
-
-        if (!user) {
-
+        if (users.length === 0) {
             return res.status(404).json({
-
-                error:
-                    "User not found"
-
+                message: "User not found"
             });
-
         }
 
-
         // Hash new password
-
-        const hashedPassword =
-            await bcrypt.hash(
-                newPassword,
-                10
-            );
-
+        const hashedPassword = await bcrypt.hash(
+            password,
+            10
+        );
 
         // Update password
+        await db.query(
+            `UPDATE users
+             SET password = ?
+             WHERE email = ?`,
+            [
+                hashedPassword,
+                email
+            ]
+        );
 
-        user.password =
-            hashedPassword;
+        // Delete OTP
+        await db.query(
+            `DELETE FROM otp
+             WHERE email = ?
+             AND action = 'password_reset'`,
+            [email]
+        );
 
-
-        await user.save();
-
-
-        // Delete used OTP
-
-        await OTP.deleteMany({
-
-            email: email,
-
-            action: "password_reset"
-
+        res.status(200).json({
+            message: "Password reset successfully"
         });
-
-
-        // Response
-
-        res.json({
-
-            message:
-                "Password reset successfully. You can now login."
-
-        });
-
 
     } catch (error) {
 
-        console.error(
-            "Reset Password Error:",
-            error
-        );
-
+        console.error("Reset Password Error:", error);
 
         res.status(500).json({
-
+            message: "Server error",
             error: error.message
-
         });
-
     }
+};
 
+
+module.exports = {
+    RegisterUser,
+    LoginUser,
+    verifyOtp,
+    forgotPassword,
+    resetPassword
 };

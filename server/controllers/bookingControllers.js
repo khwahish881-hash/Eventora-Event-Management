@@ -1,6 +1,4 @@
-const Booking = require("../models/Booking");
-const OTP = require("../models/OTP");
-const Event = require("../models/event");
+const db = require("../config/db");
 
 const {
     sendOTPEmail,
@@ -27,37 +25,37 @@ exports.sendBookingOTP = async (req, res) => {
 
     try {
 
-        // Generate 6-digit OTP
         const otp = generateOTP();
 
-
         // Remove old booking OTP
-        await OTP.findOneAndDelete({
-            email: req.user.email,
-            action: "event_booking"
-        });
-
+        await db.query(
+            `DELETE FROM otp
+             WHERE email = ?
+             AND action = 'event_booking'`,
+            [req.user.email]
+        );
 
         // Create new OTP
-        await OTP.create({
-            email: req.user.email,
-            otp: otp,
-            action: "event_booking"
-        });
+        await db.query(
+            `INSERT INTO otp
+             (email, otp, action)
+             VALUES (?, ?, 'event_booking')`,
+            [
+                req.user.email,
+                otp
+            ]
+        );
 
-
-        // Send OTP to user's email
+        // Send OTP
         await sendOTPEmail(
             req.user.email,
             otp,
             "event_booking"
         );
 
-
         res.json({
             message: "OTP sent to email"
         });
-
 
     } catch (error) {
 
@@ -69,7 +67,6 @@ exports.sendBookingOTP = async (req, res) => {
         res.status(500).json({
             error: error.message
         });
-
     }
 };
 
@@ -92,19 +89,25 @@ exports.bookEvent = async (req, res) => {
         // CHECK OTP
         // ==========================================
 
-        const otpRecord = await OTP.findOne({
-            email: req.user.email,
-            otp: otp,
-            action: "event_booking"
-        });
+        const [otpRecords] = await db.query(
+            `SELECT *
+             FROM otp
+             WHERE email = ?
+             AND otp = ?
+             AND action = 'event_booking'
+             ORDER BY created_at DESC
+             LIMIT 1`,
+            [
+                req.user.email,
+                otp
+            ]
+        );
 
-
-        if (!otpRecord) {
+        if (otpRecords.length === 0) {
 
             return res.status(400).json({
                 error: "Invalid or expired OTP"
             });
-
         }
 
 
@@ -112,30 +115,32 @@ exports.bookEvent = async (req, res) => {
         // FIND EVENT
         // ==========================================
 
-        const event = await Event.findById(
-            eventId
+        const [events] = await db.query(
+            `SELECT *
+             FROM events
+             WHERE event_id = ?`,
+            [eventId]
         );
 
-
-        if (!event) {
+        if (events.length === 0) {
 
             return res.status(404).json({
                 error: "Event not found"
             });
-
         }
+
+        const event = events[0];
 
 
         // ==========================================
         // CHECK SEATS
         // ==========================================
 
-        if (event.availableSeats <= 0) {
+        if (event.available_seats <= 0) {
 
             return res.status(400).json({
                 error: "No seats available"
             });
-
         }
 
 
@@ -143,18 +148,23 @@ exports.bookEvent = async (req, res) => {
         // CHECK EXISTING BOOKING
         // ==========================================
 
-        const existingBooking = await Booking.findOne({
-            userId: req.user._id,
-            eventId: eventId
-        });
+        const [existingBookings] = await db.query(
+            `SELECT *
+             FROM bookings
+             WHERE user_id = ?
+             AND event_id = ?
+             AND status != 'cancelled'`,
+            [
+                req.user.user_id,
+                eventId
+            ]
+        );
 
-
-        if (existingBooking) {
+        if (existingBookings.length > 0) {
 
             return res.status(400).json({
                 error: "You have already booked this event"
             });
-
         }
 
 
@@ -162,29 +172,37 @@ exports.bookEvent = async (req, res) => {
         // CREATE BOOKING
         // ==========================================
 
-        const booking = await Booking.create({
+        const [result] = await db.query(
+            `INSERT INTO bookings
+             (
+                 user_id,
+                 event_id,
+                 seats_booked,
+                 status,
+                 payment_status,
+                 amount
+             )
+             VALUES (?, ?, 1, 'pending', 'non_paid', ?)`,
+            [
+                req.user.user_id,
+                eventId,
+                event.ticket_price || 0
+            ]
+        );
 
-            userId: req.user._id,
-
-            eventId: eventId,
-
-            status: "pending",
-
-            paymentStatus: "non_paid",
-
-            amount: event.ticketPrice
-
-        });
+        const bookingId = result.insertId;
 
 
         // ==========================================
         // DELETE USED OTP
         // ==========================================
 
-        await OTP.deleteMany({
-            email: req.user.email,
-            action: "event_booking"
-        });
+        await db.query(
+            `DELETE FROM otp
+             WHERE email = ?
+             AND action = 'event_booking'`,
+            [req.user.email]
+        );
 
 
         // ==========================================
@@ -194,7 +212,7 @@ exports.bookEvent = async (req, res) => {
         await sendBookingEmail(
             req.user.email,
             event.title,
-            booking._id
+            bookingId
         );
 
 
@@ -204,22 +222,27 @@ exports.bookEvent = async (req, res) => {
 
         res.status(201).json({
 
-            message: "Booking created successfully",
+            message:
+                "Booking created successfully",
 
-            bookingId: booking._id,
+            bookingId:
+                bookingId,
 
-            eventId: event._id,
+            eventId:
+                event.event_id,
 
-            eventTitle: event.title,
+            eventTitle:
+                event.title,
 
-            amount: event.ticketPrice,
+            amount:
+                event.ticket_price || 0,
 
-            status: booking.status,
+            status:
+                "pending",
 
-            paymentStatus: booking.paymentStatus
-
+            paymentStatus:
+                "non_paid"
         });
-
 
     } catch (error) {
 
@@ -231,7 +254,6 @@ exports.bookEvent = async (req, res) => {
         res.status(500).json({
             error: error.message
         });
-
     }
 };
 
@@ -241,6 +263,8 @@ exports.bookEvent = async (req, res) => {
 // =====================================================
 
 exports.confirmBooking = async (req, res) => {
+
+    const connection = await db.getConnection();
 
     try {
 
@@ -260,43 +284,51 @@ exports.confirmBooking = async (req, res) => {
             return res.status(400).json({
                 error: "Invalid payment status"
             });
-
         }
+
+
+        await connection.beginTransaction();
 
 
         // ==========================================
         // FIND BOOKING
         // ==========================================
 
-        const booking = await Booking.findById(
-            req.params.id
-        ).populate("eventId");
+        const [bookings] = await connection.query(
+            `SELECT *
+             FROM bookings
+             WHERE booking_id = ?`,
+            [req.params.id]
+        );
 
 
-        if (!booking) {
+        if (bookings.length === 0) {
+
+            await connection.rollback();
 
             return res.status(404).json({
                 error: "Booking not found"
             });
-
         }
+
+        const booking = bookings[0];
 
 
         // ==========================================
         // SECURITY CHECK
-        // ONLY BOOKING OWNER CAN CONFIRM
         // ==========================================
 
         if (
-            booking.userId.toString() !==
-            req.user._id.toString()
+            booking.user_id !==
+            req.user.user_id
         ) {
+
+            await connection.rollback();
 
             return res.status(403).json({
                 error:
                     "You are not allowed to confirm this booking"
             });
-
         }
 
 
@@ -306,39 +338,54 @@ exports.confirmBooking = async (req, res) => {
 
         if (booking.status === "confirmed") {
 
-            return res.status(400).json({
-                error: "Booking is already confirmed"
-            });
+            await connection.rollback();
 
+            return res.status(400).json({
+                error:
+                    "Booking is already confirmed"
+            });
         }
 
 
         // ==========================================
-        // GET EVENT
+        // FIND EVENT
         // ==========================================
 
-        const event = booking.eventId;
+        const [events] = await connection.query(
+            `SELECT *
+             FROM events
+             WHERE event_id = ?
+             FOR UPDATE`,
+            [booking.event_id]
+        );
 
 
-        if (!event) {
+        if (events.length === 0) {
+
+            await connection.rollback();
 
             return res.status(404).json({
                 error: "Event not found"
             });
-
         }
+
+        const event = events[0];
 
 
         // ==========================================
         // CHECK AVAILABLE SEATS
         // ==========================================
 
-        if (event.availableSeats <= 0) {
+        if (
+            event.available_seats <
+            booking.seats_booked
+        ) {
+
+            await connection.rollback();
 
             return res.status(400).json({
                 error: "No seats available"
             });
-
         }
 
 
@@ -346,22 +393,36 @@ exports.confirmBooking = async (req, res) => {
         // CONFIRM BOOKING
         // ==========================================
 
-        booking.status = "confirmed";
-
-        booking.paymentStatus =
-            paymentStatus;
-
-
-        await booking.save();
+        await connection.query(
+            `UPDATE bookings
+             SET
+                 status = 'confirmed',
+                 payment_status = ?
+             WHERE booking_id = ?`,
+            [
+                paymentStatus,
+                booking.booking_id
+            ]
+        );
 
 
         // ==========================================
         // REDUCE AVAILABLE SEATS
         // ==========================================
 
-        event.availableSeats -= 1;
+        await connection.query(
+            `UPDATE events
+             SET available_seats =
+                 available_seats - ?
+             WHERE event_id = ?`,
+            [
+                booking.seats_booked,
+                event.event_id
+            ]
+        );
 
-        await event.save();
+
+        await connection.commit();
 
 
         // ==========================================
@@ -371,7 +432,7 @@ exports.confirmBooking = async (req, res) => {
         await sendBookingEmail(
             req.user.email,
             event.title,
-            booking._id
+            booking.booking_id
         );
 
 
@@ -385,27 +446,29 @@ exports.confirmBooking = async (req, res) => {
                 "Booking confirmed successfully",
 
             bookingId:
-                booking._id,
+                booking.booking_id,
 
             eventId:
-                event._id,
+                event.event_id,
 
             eventTitle:
                 event.title,
 
             status:
-                booking.status,
+                "confirmed",
 
             paymentStatus:
-                booking.paymentStatus,
+                paymentStatus,
 
             remainingSeats:
-                event.availableSeats
-
+                event.available_seats -
+                booking.seats_booked
         });
 
 
     } catch (error) {
+
+        await connection.rollback();
 
         console.error(
             "Confirm Booking Error:",
@@ -416,5 +479,8 @@ exports.confirmBooking = async (req, res) => {
             error: error.message
         });
 
+    } finally {
+
+        connection.release();
     }
 };

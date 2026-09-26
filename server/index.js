@@ -1,7 +1,8 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
-const mongoose = require("mongoose");
+
+const db = require("./config/db.js");
 
 dotenv.config();
 
@@ -14,17 +15,35 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+
+// ===============================
+// ROUTES
+// ===============================
+
 app.use("/api/auth", authRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/bookings", bookingRoutes);
 
-mongoose.connect(process.env.MONGODB_URI)
-    .then(() => {
-        console.log("Connected to MongoDB");
+
+// ===============================
+// MYSQL CONNECTION
+// ===============================
+
+db.getConnection()
+    .then((connection) => {
+        console.log("Connected to MySQL");
+        connection.release();
     })
     .catch((error) => {
-        console.error("Error connecting to MongoDB:", error);
+        console.error("Error connecting to MySQL:", error);
     });
+
+app.get("/test", (req, res) => {
+    res.send("INDEX.JS IS WORKING");
+});
+// ===============================
+// SERVER
+// ===============================
 
 const PORT = process.env.PORT || 5000;
 
